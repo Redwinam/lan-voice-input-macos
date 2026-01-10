@@ -15,6 +15,7 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from tkinter import ttk
 from typing import List, Tuple, Optional
+import shlex
 
 import pyautogui
 import pystray
@@ -67,6 +68,8 @@ CLIENT_LOCK = threading.Lock()
 
 # ✅ 用户手动选择的 IP（None = 自动）
 USER_IP: Optional[str] = None
+CONFIG_DATA: dict = {}
+COMMANDS: List[dict] = []
 
 
 # ===================== PyInstaller 路径工具 =====================
@@ -121,6 +124,12 @@ def _try_read_json(path: str) -> Optional[dict]:
         return None
 
 
+def _normalize_commands(raw) -> List[dict]:
+    if not isinstance(raw, list):
+        return []
+    return [c for c in raw if isinstance(c, dict)]
+
+
 def load_config():
     """
     启动时读取 config：
@@ -128,11 +137,13 @@ def load_config():
     - 否则读取用户目录 LanVI_config.json
     - 两边都没有：创建（优先主路径，失败则 fallback）
     """
-    global USER_IP, CONFIG_PATH_IN_USE
+    global USER_IP, CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS
 
     # 先读主路径
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
+        CONFIG_DATA = data
+        COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
         USER_IP = ip if ip else None
         CONFIG_PATH_IN_USE = CONFIG_PATH_PRIMARY
@@ -141,6 +152,8 @@ def load_config():
     # 再读 fallback
     data = _try_read_json(CONFIG_PATH_FALLBACK)
     if isinstance(data, dict):
+        CONFIG_DATA = data
+        COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
         USER_IP = ip if ip else None
         CONFIG_PATH_IN_USE = CONFIG_PATH_FALLBACK
@@ -148,6 +161,8 @@ def load_config():
 
     # 都没有：创建默认（自动）
     USER_IP = None
+    CONFIG_DATA = {"user_ip": None, "commands": []}
+    COMMANDS = []
     save_config()
 
 
@@ -157,8 +172,10 @@ def save_config():
     - 优先写 exe 同级 config.json（你期望的位置）
     - 若无权限/失败：写到用户目录，并切换 CONFIG_PATH_IN_USE
     """
-    global CONFIG_PATH_IN_USE
-    data = {"user_ip": USER_IP}
+    global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS
+    data = dict(CONFIG_DATA) if isinstance(CONFIG_DATA, dict) else {}
+    data["user_ip"] = USER_IP
+    data["commands"] = COMMANDS
 
     # 优先写主路径（exe 同级）
     if _try_write_json(CONFIG_PATH_PRIMARY, data):
@@ -785,6 +802,54 @@ def handle_text(text: str):
         processor.record_output(result.output)
 
 
+def _build_command_args(command, args) -> List[str]:
+    if isinstance(command, str) and command.strip():
+        parts = shlex.split(command, posix=False)
+    elif isinstance(command, list):
+        parts = [str(x) for x in command if str(x).strip()]
+    else:
+        parts = []
+
+    if isinstance(args, list):
+        parts.extend([str(x) for x in args if str(x).strip()])
+    return parts
+
+
+def _match_command(text: str) -> Optional[dict]:
+    text = (text or "").strip()
+    if not text:
+        return None
+    for cmd in COMMANDS:
+        match_string = (cmd.get("match-string") or "").strip()
+        if match_string and match_string == text:
+            return cmd
+    return None
+
+
+def execute_command(text: str) -> CommandResult:
+    cmd = _match_command(text)
+    if not cmd:
+        return CommandResult(True, f"未找到匹配指令：{text}", {"ok": False, "message": "未找到匹配指令"})
+
+    args = _build_command_args(cmd.get("command"), cmd.get("args"))
+    if not args:
+        return CommandResult(True, f"命令配置错误：{text}", {"ok": False, "message": "命令配置错误"})
+
+    try:
+        completed = subprocess.run(args, capture_output=True, text=True)
+        ok = completed.returncode == 0
+        stderr = (completed.stderr or "").strip()
+        if ok:
+            msg = f"指令执行成功：{text}"
+        else:
+            msg = f"指令执行失败：{text}（exit {completed.returncode}）"
+            if stderr:
+                msg = f"{msg} - {stderr}"
+        return CommandResult(True, msg, {"ok": ok, "message": msg})
+    except Exception as e:
+        return CommandResult(True, f"指令执行异常：{text} - {e}", {"ok": False, "message": f"指令执行异常：{e}"})
+
+
 # ===================== WebSocket =====================
 async def ws_handler(websocket):
     global CLIENT_COUNT
@@ -800,7 +865,29 @@ async def ws_handler(websocket):
             if not msg:
                 continue
             print("收到：", msg)
-            handle_text(msg)
+            msg_type = "text"
+            content = msg
+            if msg.startswith("{"):
+                try:
+                    payload = json.loads(msg)
+                    if isinstance(payload, dict):
+                        msg_type = (payload.get("type") or "text").strip()
+                        content = payload.get("string")
+                except Exception:
+                    msg_type = "text"
+                    content = msg
+
+            if msg_type == "cmd":
+                result = execute_command(str(content or "").strip())
+                resp = {
+                    "type": "cmd_result",
+                    "string": str(content or "").strip(),
+                    "ok": bool(result.output.get("ok")) if isinstance(result.output, dict) else False,
+                    "message": result.output.get("message") if isinstance(result.output, dict) else result.display_text,
+                }
+                await websocket.send(json.dumps(resp, ensure_ascii=False))
+            else:
+                handle_text(str(content or ""))
 
     except (ConnectionClosedOK, ConnectionClosedError, ConnectionClosed, ConnectionResetError, OSError):
         pass
