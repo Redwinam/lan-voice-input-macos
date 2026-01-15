@@ -1,7 +1,6 @@
 # server.py
 # -*- coding: utf-8 -*-
 import asyncio
-import ctypes
 import json
 import os
 import re
@@ -10,10 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-import tkinter as tk
-from ctypes import wintypes
 from dataclasses import dataclass
-from tkinter import ttk
 from typing import List, Tuple, Optional
 import shlex
 
@@ -28,14 +24,25 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError, Conne
 
 # queue 用于 Tk 线程
 import queue
+import platform
+
+IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
 
 # Windows Toast：winotify
-try:
-    from winotify import Notification
-
-    WINOTIFY_AVAILABLE = True
-except Exception:
+if IS_WINDOWS:
+    try:
+        from winotify import Notification
+        WINOTIFY_AVAILABLE = True
+    except Exception:
+        WINOTIFY_AVAILABLE = False
+else:
     WINOTIFY_AVAILABLE = False
+
+if IS_WINDOWS:
+    import ctypes
+    from ctypes import wintypes
+
 
 # ===================== 默认端口（自动选择可用）=====================
 DEFAULT_HTTP_PORT = 8080
@@ -190,7 +197,7 @@ def save_config():
 
 # ===================== 通知封装 =====================
 def notify(title: str, msg: str, duration=3):
-    """托盘气泡 + Windows Toast（winotify），永不抛异常影响主程序"""
+    """托盘气泡 + 系统原生通知，永不抛异常影响主程序"""
     global tray_icon
 
     # 托盘气泡（稳定兜底）
@@ -201,22 +208,31 @@ def notify(title: str, msg: str, duration=3):
         pass
 
     # Windows Toast（winotify）
-    if not WINOTIFY_AVAILABLE:
-        return
-
-    def _toast():
-        try:
-            toast = Notification(
-                app_id="LAN Voice Input",
-                title=title,
-                msg=msg,
-                duration="short"
-            )
-            toast.show()
-        except Exception:
-            pass
-
-    threading.Thread(target=_toast, daemon=True).start()
+    if IS_WINDOWS and WINOTIFY_AVAILABLE:
+        def _toast():
+            try:
+                toast = Notification(
+                    app_id="LAN Voice Input",
+                    title=title,
+                    msg=msg,
+                    duration="short"
+                )
+                toast.show()
+            except Exception:
+                pass
+        threading.Thread(target=_toast, daemon=True).start()
+    
+    # macOS Notification (osascript)
+    if IS_MACOS:
+        def _notify_macos():
+            try:
+                # 使用 AppleScript 发送通知
+                # display notification "message" with title "title"
+                script = f'display notification "{msg}" with title "{title}"'
+                subprocess.run(["osascript", "-e", script])
+            except Exception:
+                pass
+        threading.Thread(target=_notify_macos, daemon=True).start()
 
 
 # ===================== 自动选择可用端口 =====================
@@ -276,7 +292,7 @@ def parse_windows_ipconfig() -> List[Tuple[str, str]]:
     Windows：解析 ipconfig，尽量拿到 "网卡名 + IPv4"
     返回 [(label, ip), ...]
     """
-    if os.name != "nt":
+    if not IS_WINDOWS:
         return []
 
     out = ""
@@ -327,7 +343,9 @@ def get_ipv4_candidates() -> List[Tuple[str, str]]:
     3) 自动推荐（默认出口）
     """
     candidates: List[Tuple[str, str]] = []
-    candidates.extend(parse_windows_ipconfig())
+    if IS_WINDOWS:
+        candidates.extend(parse_windows_ipconfig())
+
 
     try:
         hostname = socket.gethostname()
@@ -370,295 +388,145 @@ def build_urls(ip: str):
 
 
 # ===================== Tk 二维码窗口（内置网卡选择 + 同步刷新）=====================
-class QRWindowManager:
-    """只启动一次 Tk mainloop，通过线程安全调用显示/刷新二维码窗口"""
+# macOS 不使用 Tkinter，避免主线程冲突和崩坏
+# 替代方案：生成二维码图片并调用系统预览打开，或仅在终端输出
 
-    def __init__(self):
-        self.cmd_q = queue.Queue()
-        self.thread = threading.Thread(target=self._tk_thread, daemon=True)
-        self.thread.start()
-
-    def show(self):
-        self.cmd_q.put(("show", None))
-
-    def close(self):
-        self.cmd_q.put(("close", None))
-
-    def call(self, fn):
-        self.cmd_q.put(("call", fn))
-
-    def _tk_thread(self):
-        self.root = tk.Tk()
-        self.root.withdraw()
-        self.root.title("QRRoot")
-
-        self.top = None
-        self.tk_img = None
-
-        self.ip_items: List[Tuple[str, str]] = []
-        self.ip_var = tk.StringVar()
-        self.combo = None
-
-        self.img_label = None
-        self.url_label = None
-        self.tip_label = None
-
-        self.root.after(100, self._poll_queue)
-        self.root.mainloop()
-
-    def _poll_queue(self):
-        try:
-            while True:
-                cmd, data = self.cmd_q.get_nowait()
-                if cmd == "show":
-                    self._show_window()
-                elif cmd == "close":
-                    self._close_window()
-                elif cmd == "call":
-                    try:
-                        data()
-                    except Exception:
-                        pass
-        except queue.Empty:
-            pass
-        self.root.after(100, self._poll_queue)
-
-    def _close_window(self):
-        if self.top is not None:
-            try:
-                self.top.destroy()
-            except Exception:
-                pass
-        self.top = None
-        self.tk_img = None
-        self.combo = None
-        self.img_label = None
-        self.url_label = None
-        self.tip_label = None
-
-    def _ensure_window(self):
-        if self.top is not None:
-            return
-
-        self.top = tk.Toplevel(self.root)
-        self.top.title("扫码打开语音输入网页")
-        self.top.attributes("-topmost", True)
-        self.top.protocol("WM_DELETE_WINDOW", self._close_window)
-
-        header = ttk.Frame(self.top)
-        header.pack(fill="x", padx=10, pady=(10, 6))
-
-        ttk.Label(header, text="选择网卡/IP：").pack(side="left")
-
-        self.combo = ttk.Combobox(header, textvariable=self.ip_var, state="readonly", width=48)
-        self.combo.pack(side="left", padx=6, fill="x", expand=True)
-
-        btn_auto = ttk.Button(header, text="自动推荐", command=self._on_auto_ip)
-        btn_auto.pack(side="left", padx=(6, 0))
-
-        self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
-
-        self.img_label = ttk.Label(self.top)
-        self.img_label.pack(padx=10, pady=10)
-
-        self.url_label = ttk.Label(self.top, font=("Arial", 12))
-        self.url_label.pack(padx=10, pady=(0, 6))
-
-        self.tip_label = ttk.Label(self.top, font=("Arial", 10), foreground="#333", justify="center")
-        self.tip_label.pack(padx=10, pady=(0, 10))
-
-    def _reload_ip_list_and_select_current(self):
-        global USER_IP
-
-        self.ip_items = get_ipv4_candidates()
-        labels = [lbl for (lbl, _ip) in self.ip_items]
-        self.combo["values"] = labels
-
-        current = (USER_IP or "").strip()
-        idx = 0
-
-        if current:
-            for i, (_lbl, ip) in enumerate(self.ip_items):
-                if ip == current:
-                    idx = i
-                    break
-            else:
-                USER_IP = None
-                save_config()
-                current = ""
-
-        if not current:
-            for i, (lbl, _ip) in enumerate(self.ip_items):
-                if lbl.startswith("自动推荐"):
-                    idx = i
-                    break
-
-        if labels:
-            self.combo.current(idx)
-            self.ip_var.set(labels[idx])
-
-    def _selected_ip(self) -> str:
-        label = self.ip_var.get()
-        for (lbl, ip) in self.ip_items:
-            if lbl == label:
-                return ip
-        return get_effective_ip()
-
-    def _on_ip_selected(self):
-        global USER_IP
-        ip = self._selected_ip()
-        USER_IP = ip
-        save_config()
-
-        build_urls(get_effective_ip())
-        self._refresh_qr_and_text()
-
-    def _on_auto_ip(self):
-        global USER_IP
-        USER_IP = None
-        save_config()
-
-        build_urls(get_effective_ip())
-        self._reload_ip_list_and_select_current()
-        self._refresh_qr_and_text()
-
-    def _refresh_qr_and_text(self):
-        url = QR_PAYLOAD_URL or ""
-        if not url:
-            return
-
-        qr = qrcode.QRCode(box_size=8, border=2)
+def open_qr_image(url):
+    try:
+        qr = qrcode.QRCode(box_size=10, border=4)
         qr.add_data(url)
         qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        self.tk_img = ImageTk.PhotoImage(img)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # 保存到临时文件
+        path = os.path.join(get_exe_dir(), "qr_code.png")
+        img.save(path)
+        
+        # 打开图片
+        if IS_MACOS:
+            subprocess.run(["open", path])
+        elif IS_WINDOWS:
+            os.startfile(path)
+        
+    except Exception as e:
+        print("无法打开二维码图片：", e)
 
-        self.img_label.configure(image=self.tk_img)
-        self.url_label.configure(text=url)
+# ===================== Input Control (Cross Platform) =====================
 
-        ip_show = get_effective_ip()
-        mode = "手动" if (USER_IP and USER_IP.strip()) else "自动"
-        self.tip_label.configure(
-            text=f"手机扫码打开网页（同一 WiFi / 同网段）\n"
-                 f"模式：{mode}  IP：{ip_show}\n"
-                 f"HTTP:{HTTP_PORT}  WS:{WS_PORT}\n"
-                 f"关闭此窗口不影响后台运行"
-                 f"\n配置文件：{CONFIG_PATH_IN_USE}"
-        )
+# --- Windows Implementation ---
+if IS_WINDOWS:
+    if not hasattr(wintypes, "ULONG_PTR"):
+        wintypes.ULONG_PTR = ctypes.c_size_t
 
-    def _show_window(self):
-        self._ensure_window()
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
 
+    INPUT_KEYBOARD = 1
+    KEYEVENTF_KEYUP = 0x0002
+    KEYEVENTF_UNICODE = 0x0004
+
+    VK_BACK = 0x08
+    VK_RETURN = 0x0D
+
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", wintypes.LONG),
+            ("dy", wintypes.LONG),
+            ("mouseData", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", wintypes.ULONG_PTR),
+        ]
+
+    class KEYBDINPUT(ctypes.Structure):
+        _fields_ = [
+            ("wVk", wintypes.WORD),
+            ("wScan", wintypes.WORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", wintypes.ULONG_PTR),
+        ]
+
+    class HARDWAREINPUT(ctypes.Structure):
+        _fields_ = [
+            ("uMsg", wintypes.DWORD),
+            ("wParamL", wintypes.WORD),
+            ("wParamH", wintypes.WORD),
+        ]
+
+    class _INPUTunion(ctypes.Union):
+        _fields_ = [
+            ("mi", MOUSEINPUT),
+            ("ki", KEYBDINPUT),
+            ("hi", HARDWAREINPUT),
+        ]
+
+    class INPUT(ctypes.Structure):
+        _anonymous_ = ("union",)
+        _fields_ = [("type", wintypes.DWORD), ("union", _INPUTunion)]
+
+    def _send_input(inputs):
+        n = len(inputs)
+        arr = (INPUT * n)(*inputs)
+        cb = ctypes.sizeof(INPUT)
+        sent = user32.SendInput(n, arr, cb)
+        if sent != n:
+            err = ctypes.get_last_error()
+            raise ctypes.WinError(err)
+
+    def send_unicode_text(text: str):
+        inputs = []
+        for ch in text:
+            code = ord(ch)
+            inputs.append(INPUT(
+                type=INPUT_KEYBOARD,
+                ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=0)
+            ))
+            inputs.append(INPUT(
+                type=INPUT_KEYBOARD,
+                ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)
+            ))
+        _send_input(inputs)
+
+    def press_vk(vk_code: int, times: int = 1):
+        for _ in range(times):
+            down = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+            up = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+            _send_input([down, up])
+
+    def backspace(n: int):
+        if n > 0:
+            press_vk(VK_BACK, times=n)
+
+    def press_enter():
+        press_vk(VK_RETURN, times=1)
+
+# --- macOS / Other Implementation ---
+else:
+    # 依赖 pyautogui / pyperclip
+    # 确保已安装: pip install pyperclip
+    import pyperclip
+
+    def send_unicode_text(text: str):
+        """
+        macOS 下模拟键盘输入 Unicode 最稳妥的方式：
+        复制到剪贴板 -> 模拟 Cmd+V
+        """
+        if not text:
+            return
+        
         try:
-            self.top.deiconify()
-            self.top.lift()
-            self.top.attributes("-topmost", True)
-            self.top.after(200, lambda: self.top.attributes("-topmost", False))
-        except Exception:
-            pass
+            pyperclip.copy(text)
+            # macOS 使用 command+v
+            pyautogui.hotkey('command', 'v')
+        except Exception as e:
+            print(f"Error sending text: {e}")
 
-        self._reload_ip_list_and_select_current()
-        build_urls(get_effective_ip())
-        self._refresh_qr_and_text()
+    def backspace(n: int):
+        if n > 0:
+            pyautogui.press('backspace', presses=n)
 
-
-qr_mgr = QRWindowManager()
-
-# ===================== Windows SendInput =====================
-if not hasattr(wintypes, "ULONG_PTR"):
-    wintypes.ULONG_PTR = ctypes.c_size_t
-
-user32 = ctypes.WinDLL("user32", use_last_error=True)
-
-INPUT_KEYBOARD = 1
-KEYEVENTF_KEYUP = 0x0002
-KEYEVENTF_UNICODE = 0x0004
-
-VK_BACK = 0x08
-VK_RETURN = 0x0D
-
-
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = [
-        ("dx", wintypes.LONG),
-        ("dy", wintypes.LONG),
-        ("mouseData", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", wintypes.ULONG_PTR),
-    ]
-
-
-class KEYBDINPUT(ctypes.Structure):
-    _fields_ = [
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", wintypes.ULONG_PTR),
-    ]
-
-
-class HARDWAREINPUT(ctypes.Structure):
-    _fields_ = [
-        ("uMsg", wintypes.DWORD),
-        ("wParamL", wintypes.WORD),
-        ("wParamH", wintypes.WORD),
-    ]
-
-
-class _INPUTunion(ctypes.Union):
-    _fields_ = [
-        ("mi", MOUSEINPUT),
-        ("ki", KEYBDINPUT),
-        ("hi", HARDWAREINPUT),
-    ]
-
-
-class INPUT(ctypes.Structure):
-    _anonymous_ = ("union",)
-    _fields_ = [("type", wintypes.DWORD), ("union", _INPUTunion)]
-
-
-def _send_input(inputs):
-    n = len(inputs)
-    arr = (INPUT * n)(*inputs)
-    cb = ctypes.sizeof(INPUT)
-    sent = user32.SendInput(n, arr, cb)
-    if sent != n:
-        err = ctypes.get_last_error()
-        raise ctypes.WinError(err)
-
-
-def send_unicode_text(text: str):
-    inputs = []
-    for ch in text:
-        code = ord(ch)
-        inputs.append(INPUT(
-            type=INPUT_KEYBOARD,
-            ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=0)
-        ))
-        inputs.append(INPUT(
-            type=INPUT_KEYBOARD,
-            ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)
-        ))
-    _send_input(inputs)
-
-
-def press_vk(vk_code: int, times: int = 1):
-    for _ in range(times):
-        down = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
-        up = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
-        _send_input([down, up])
-
-
-def backspace(n: int):
-    if n > 0:
-        press_vk(VK_BACK, times=n)
-
-
-def press_enter():
-    press_vk(VK_RETURN, times=1)
+    def press_enter():
+        pyautogui.press('enter')
 
 
 # ===================== 指令系统 =====================
@@ -917,7 +785,12 @@ app = Flask(__name__)
 def index():
     # 打包后 index.html 在 sys._MEIPASS（onefile 临时解压目录）
     path = resource_path("index.html")
-    return send_file(path)
+    response = send_file(path)
+    # 禁止缓存，确保前端更新立即可见
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/config")
@@ -941,7 +814,11 @@ def tray_quit(icon, _):
 
 def run_tray():
     global tray_icon
-    imagePath = resource_path("icon.ico")
+    imagePath = resource_path("logo.png")
+    if not os.path.exists(imagePath):
+        # Fallback if logo.png doesn't exist, try icon.ico or generic
+        imagePath = resource_path("icon.ico")
+        
     menu = (
         item("显示二维码", tray_show_qr),
         item("退出", tray_quit),
@@ -975,7 +852,7 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: asyncio.run(ws_main()), daemon=True).start()
 
     notify("LANVoiceInput 启动成功", f"HTTP:{HTTP_PORT}  WS:{WS_PORT}\n双击托盘图标显示二维码")
-    # ✅ 启动后自动打开二维码窗口（加一点延迟更稳）
-    threading.Timer(0.3, qr_mgr.show).start()
+    # ✅ 启动后自动打开二维码窗口
+    threading.Timer(0.3, lambda: open_qr_image(QR_PAYLOAD_URL)).start()
 
     run_tray()

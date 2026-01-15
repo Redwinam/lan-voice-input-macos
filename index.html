@@ -30,6 +30,10 @@
     <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
     <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
   </div>
+  <div style="margin-top: 12px; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+    <input type="checkbox" id="manualModeCheck" style="transform: scale(1.3); cursor: pointer;">
+    <label for="manualModeCheck" style="font-size: 16px; color: #333; cursor: pointer; font-weight: bold;">☑️ 仅手动发送 (输入完点发送)</label>
+  </div>
   <div style="width: 100%">
     <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
   </div>
@@ -183,6 +187,9 @@ box.addEventListener("input", () => {
 });
 
 function flushDelta(){
+  // 如果是手动模式，不执行自动发送
+  if(document.getElementById("manualModeCheck").checked) return;
+
   const current = box.value;
   if(!current.trim()) return;
 
