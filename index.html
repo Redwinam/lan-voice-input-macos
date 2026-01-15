@@ -39,6 +39,7 @@
   </div>
   <div>
     <button id="sendBtn" class="action-btn">📤 手动发送</button>
+    <button id="resendBtn" class="action-btn">🔄 重发</button>
     <button id="clearBtn" class="action-btn">🧹 清空</button>
     <button id="testBtn" style="display: none;">🧪 测试注入</button>
   </div>
@@ -59,8 +60,9 @@ const DUP_WINDOW_MS = 1500;
 
 function log(msg){
   const el = document.getElementById("log");
-  el.textContent += msg + "\n";
-  el.scrollTop = el.scrollHeight;
+  const time = new Date().toLocaleTimeString();
+  el.textContent = `[${time}] ${msg}\n` + el.textContent;
+  el.scrollTop = 0;
 }
 
 function setStatus(msg){
@@ -154,10 +156,23 @@ function sendText(text){
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
-  sendText(box.value);
-  box.value = "";
-  lastSentText = "";
-  box.focus();
+  const text = box.value;
+  if(text){
+    lastManualText = text; // 保存用于重发
+    sendText(text);
+    box.value = "";
+    lastSentText = "";
+    box.focus();
+  }
+};
+
+document.getElementById("resendBtn").onclick = () => {
+  if(!lastManualText){
+    log("⚠️ 没有可重发的内容");
+    return;
+  }
+  log("🔄 正在重发...");
+  sendText(lastManualText, true); // 强制发送，忽略去重
 };
 
 document.getElementById("clearBtn").onclick = () => {
