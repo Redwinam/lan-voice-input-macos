@@ -46,7 +46,43 @@ pip install -r requirements.txt
 python server.py
 ```
 
-启动成功后，电脑会自动弹出二维码图片。
+启动成功后，会通过系统通知显示连接 URL。你也可以在右上角菜单栏图标中复制 URL 或显示二维码。
+
+## 📦 打包成 macOS 菜单栏常驻应用（.app）
+
+### 1. 安装打包工具
+```bash
+python3 -m pip install pyinstaller
+```
+
+### 2. 生成 .app
+在项目根目录执行：
+```bash
+pyinstaller server.py \
+  --name "LAN Voice Input" \
+  --windowed \
+  --icon icon.icns \
+  --add-data "index.html:." \
+  --add-data "icon.icns:." \
+  --add-data "icon.png:." \
+  --clean \
+  --noconfirm
+```
+
+### 3. 运行
+产物在：
+* `dist/LAN Voice Input.app`
+
+双击打开后会常驻在右上角菜单栏。
+
+### 4. 菜单栏功能
+* 启动服务 / 停止服务（停止会释放端口与资源）
+* 复制 URL（用于手机扫码/打开）
+* 显示二维码
+* 隐藏/显示 Dock 图标
+
+### 5. 开机自启动（可选）
+系统设置 → 通用 → 登录项 → 将 `LAN Voice Input.app` 添加到“在登录时打开”。
 
 ## 📱 使用方法
 

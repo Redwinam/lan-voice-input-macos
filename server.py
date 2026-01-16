@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+import tempfile
 from collections import deque
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
@@ -22,6 +23,7 @@ import websockets
 from PIL import Image
 from flask import Flask, send_file, jsonify
 from pystray import MenuItem as item
+from werkzeug.serving import make_server
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
 import platform
@@ -73,6 +75,19 @@ tray_icon = None
 
 CLIENT_COUNT = 0
 CLIENT_LOCK = threading.Lock()
+
+# ===================== 服务生命周期（启动/停止）=====================
+SERVICE_LOCK = threading.Lock()
+SERVICE_RUNNING = False
+
+HTTP_SERVER = None
+HTTP_THREAD = None
+
+WS_LOOP = None
+WS_THREAD = None
+WS_SERVER = None
+
+DOCK_ICON_HIDDEN = False
 
 # ✅ 用户手动选择的 IP（None = 自动）
 USER_IP: Optional[str] = None
@@ -424,9 +439,13 @@ def open_qr_image(url):
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
         
-        # 保存到临时文件
-        path = os.path.join(get_exe_dir(), "qr_code.png")
-        img.save(path)
+        base_dir = get_exe_dir()
+        path = os.path.join(base_dir, "qr_code.png")
+        try:
+            img.save(path)
+        except Exception:
+            path = os.path.join(tempfile.gettempdir(), "lan_voice_input_qr_code.png")
+            img.save(path)
         
         # 打开图片
         if IS_MACOS:
@@ -834,11 +853,244 @@ def run_http():
     app.run(host="0.0.0.0", port=HTTP_PORT, debug=False, use_reloader=False)
 
 
+def _run_http_server_forever():
+    global HTTP_SERVER
+    if HTTP_PORT is None:
+        raise RuntimeError("HTTP_PORT 未初始化")
+    HTTP_SERVER = make_server("0.0.0.0", HTTP_PORT, app)
+    HTTP_SERVER.serve_forever()
+
+
+def _ws_thread_main(ready_evt: threading.Event):
+    global WS_LOOP, WS_SERVER
+    if WS_PORT is None:
+        raise RuntimeError("WS_PORT 未初始化")
+    loop = asyncio.new_event_loop()
+    WS_LOOP = loop
+    asyncio.set_event_loop(loop)
+
+    async def _start_ws_server():
+        return await websockets.serve(
+            ws_handler, "0.0.0.0", WS_PORT,
+            ping_interval=WS_PING_INTERVAL,
+            ping_timeout=WS_PING_TIMEOUT,
+            max_size=1_000_000,
+            max_queue=32,
+            compression=None,
+        )
+
+    WS_SERVER = loop.run_until_complete(_start_ws_server())
+    ready_evt.set()
+    try:
+        loop.run_forever()
+    finally:
+        try:
+            if WS_SERVER:
+                WS_SERVER.close()
+                loop.run_until_complete(WS_SERVER.wait_closed())
+        except Exception:
+            pass
+        try:
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:
+            pass
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
+def is_service_running() -> bool:
+    with SERVICE_LOCK:
+        return bool(SERVICE_RUNNING)
+
+
+def start_services(open_qr: bool = False):
+    global HTTP_PORT, WS_PORT, QR_URL, QR_PAYLOAD_URL
+    global HTTP_THREAD, WS_THREAD
+    global SERVICE_RUNNING
+
+    with SERVICE_LOCK:
+        if SERVICE_RUNNING:
+            return
+
+        HTTP_PORT = choose_free_port(DEFAULT_HTTP_PORT)
+        WS_PORT = choose_free_port(DEFAULT_WS_PORT)
+        build_urls(get_effective_ip())
+        SERVICE_RUNNING = True
+
+    print("\n======================================")
+    print("✅ 已启动（服务已开启）")
+    print("📱 手机打开：", QR_PAYLOAD_URL)
+    print("HTTP:", HTTP_PORT, "WS:", WS_PORT)
+    print("======================================\n")
+
+    HTTP_THREAD = threading.Thread(target=_run_http_server_forever, daemon=True)
+    HTTP_THREAD.start()
+
+    ws_ready = threading.Event()
+    WS_THREAD = threading.Thread(target=lambda: _ws_thread_main(ws_ready), daemon=True)
+    WS_THREAD.start()
+    ws_ready.wait(timeout=3)
+
+    notify("LANVoiceInput 服务已启动", f"URL:\n{QR_PAYLOAD_URL}\n\nHTTP:{HTTP_PORT}  WS:{WS_PORT}")
+    if open_qr and QR_PAYLOAD_URL:
+        threading.Timer(0.3, lambda: open_qr_image(QR_PAYLOAD_URL)).start()
+
+
+def stop_services():
+    global HTTP_PORT, WS_PORT, QR_URL, QR_PAYLOAD_URL
+    global HTTP_SERVER, HTTP_THREAD
+    global WS_SERVER, WS_LOOP, WS_THREAD
+    global SERVICE_RUNNING
+
+    with SERVICE_LOCK:
+        if not SERVICE_RUNNING:
+            return
+        SERVICE_RUNNING = False
+
+    try:
+        if HTTP_SERVER:
+            HTTP_SERVER.shutdown()
+            HTTP_SERVER.server_close()
+    except Exception:
+        pass
+    HTTP_SERVER = None
+    HTTP_THREAD = None
+
+    try:
+        if WS_LOOP:
+            async def _shutdown_ws():
+                try:
+                    if WS_SERVER:
+                        WS_SERVER.close()
+                        await WS_SERVER.wait_closed()
+                except Exception:
+                    pass
+
+            fut = asyncio.run_coroutine_threadsafe(_shutdown_ws(), WS_LOOP)
+            try:
+                fut.result(timeout=3)
+            except Exception:
+                pass
+            try:
+                WS_LOOP.call_soon_threadsafe(WS_LOOP.stop)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        if WS_THREAD and WS_THREAD.is_alive():
+            WS_THREAD.join(timeout=3)
+    except Exception:
+        pass
+
+    WS_SERVER = None
+    WS_LOOP = None
+    WS_THREAD = None
+
+    HTTP_PORT = None
+    WS_PORT = None
+    QR_URL = None
+    QR_PAYLOAD_URL = None
+
+    notify("LANVoiceInput 服务已停止", "已关闭 HTTP/WebSocket 监听，释放端口资源")
+
+
 def tray_show_qr(icon, _):
+    if not is_service_running() or not QR_PAYLOAD_URL:
+        notify("服务未启动", "请先在菜单栏选择“启动服务”")
+        return
     open_qr_image(QR_PAYLOAD_URL)
 
 
+def tray_toggle_service(icon, _):
+    if is_service_running():
+        stop_services()
+    else:
+        start_services(open_qr=False)
+    try:
+        icon.update_menu()
+    except Exception:
+        pass
+
+
+def tray_start_stop_text(_=None):
+    return "停止服务" if is_service_running() else "启动服务"
+
+
+def tray_copy_url(icon, _):
+    if not is_service_running() or not QR_PAYLOAD_URL:
+        notify("服务未启动", "请先在菜单栏选择“启动服务”")
+        return
+    ok = copy_text_to_clipboard(QR_PAYLOAD_URL)
+    if ok:
+        notify("已复制 URL", QR_PAYLOAD_URL)
+    else:
+        notify("复制失败", "当前系统不支持自动复制")
+
+
+def copy_text_to_clipboard(text: str) -> bool:
+    try:
+        if IS_MACOS:
+            subprocess.run(["pbcopy"], input=str(text), text=True, check=False)
+            return True
+        if IS_WINDOWS:
+            subprocess.run(["cmd", "/c", "clip"], input=str(text), text=True, check=False)
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def set_dock_icon_hidden(hidden: bool) -> bool:
+    if not IS_MACOS:
+        return False
+    try:
+        from rubicon.objc.runtime import load_library
+        load_library("AppKit")
+        from rubicon.objc import ObjCClass
+        NSApplication = ObjCClass("NSApplication")
+        app = NSApplication.sharedApplication
+        policy = 1 if hidden else 0
+        return bool(app.setActivationPolicy_(policy))
+    except Exception:
+        return False
+
+
+def tray_toggle_dock_icon(icon, _):
+    global DOCK_ICON_HIDDEN
+    target = not bool(DOCK_ICON_HIDDEN)
+    ok = set_dock_icon_hidden(target)
+    if ok:
+        DOCK_ICON_HIDDEN = target
+        try:
+            icon.update_menu()
+        except Exception:
+            pass
+    else:
+        notify("切换失败", "当前环境不支持隐藏/显示 Dock 图标")
+
+
+def tray_dock_checked(_=None):
+    return bool(DOCK_ICON_HIDDEN)
+
+
+def tray_dock_text(_=None):
+    return "显示 Dock 图标" if bool(DOCK_ICON_HIDDEN) else "隐藏 Dock 图标"
+
+
+
 def tray_quit(icon, _):
+    try:
+        stop_services()
+    except Exception:
+        pass
     notify("退出", "LAN Voice Input 已退出")
     icon.stop()
     os._exit(0)
@@ -854,7 +1106,10 @@ def run_tray():
     imagePath = next((p for p in candidate_paths if os.path.exists(p)), None)
         
     menu = (
+        item(tray_start_stop_text, tray_toggle_service),
+        item("复制 URL", tray_copy_url, enabled=lambda _: is_service_running() and bool(QR_PAYLOAD_URL)),
         item("显示二维码", tray_show_qr),
+        item(tray_dock_text, tray_toggle_dock_icon, checked=lambda _: tray_dock_checked(), enabled=lambda _: IS_MACOS),
         item("退出", tray_quit),
     )
     image = Image.open(imagePath) if imagePath else Image.new("RGB", (64, 64), (0, 0, 0))
@@ -867,27 +1122,12 @@ def run_tray():
 if __name__ == "__main__":
     # ✅ 启动即读取/创建 config（打包后优先 exe 同级 config.json）
     load_config()
-
-    HTTP_PORT = choose_free_port(DEFAULT_HTTP_PORT)
-    WS_PORT = choose_free_port(DEFAULT_WS_PORT)
-
-    build_urls(get_effective_ip())
-
     print("\n======================================")
-    print("✅ 已启动")
-    print("📱 手机打开：", QR_PAYLOAD_URL)
-    print("HTTP:", HTTP_PORT, "WS:", WS_PORT)
-    print("======================================")
     print("CONFIG(primary):", CONFIG_PATH_PRIMARY)
     print("CONFIG(fallback):", CONFIG_PATH_FALLBACK)
     print("CONFIG(in use):", CONFIG_PATH_IN_USE)
     print("======================================\n")
 
-    threading.Thread(target=run_http, daemon=True).start()
-    threading.Thread(target=lambda: asyncio.run(ws_main()), daemon=True).start()
-
-    notify("LANVoiceInput 启动成功", f"HTTP:{HTTP_PORT}  WS:{WS_PORT}\n双击托盘图标显示二维码")
-    # ✅ 启动后自动打开二维码窗口
-    threading.Timer(0.3, lambda: open_qr_image(QR_PAYLOAD_URL)).start()
+    start_services(open_qr=False)
 
     run_tray()
