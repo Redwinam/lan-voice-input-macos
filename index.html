@@ -1,52 +1,395 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>局域网语音输入</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
-    body { font-family: sans-serif; padding: 16px; }
-    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; margin-top: 12px; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto;  }
-    button { font-size: 18px; padding: 12px 16px; margin-right: 8px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
-    button:active { transform: translateY(1px); }
-    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 120px; }
-    .status { margin-top: 10px; font-size: 14px; color: #555; }
-    .hint { margin-top: 10px; font-size: 13px; color: #666; line-height: 1.4; }
-    code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
-    .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    .mode-btn { font-size: 15px; padding: 8px 12px; border-radius: 999px; }
-    .mode-btn.active { background: #ffe5d6; border-color: #f6a17c; color: #7a2b12; }
-    .action-btn { background: #fff; border-color: #cfcfcf; }
-    .action-btn:hover { background: #f2f2f2; }
+    :root {
+      --primary: #3b82f6; /* Blue 500 */
+      --primary-hover: #2563eb; /* Blue 600 */
+      --bg: #f1f5f9; /* Slate 100 */
+      --surface: #ffffff;
+      --text: #1e293b; /* Slate 800 */
+      --text-secondary: #64748b; /* Slate 500 */
+      --border: #e2e8f0; /* Slate 200 */
+      --success: #10b981; /* Emerald 500 */
+      --error: #ef4444; /* Red 500 */
+      --warning: #f59e0b; /* Amber 500 */
+      --radius: 16px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-family);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden; /* Prevent body scroll, handle inside container */
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      background: var(--surface);
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      transition: background 0.3s;
+    }
+
+    .status-badge.connected { border-color: var(--success); color: var(--success); background: #ecfdf5; }
+    .status-badge.connected .status-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    
+    .status-badge.disconnected { border-color: var(--error); color: var(--error); background: #fef2f2; }
+    .status-badge.disconnected .status-dot { background: var(--error); }
+    
+    .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: #fffbeb; }
+    .status-badge.connecting .status-dot { background: var(--warning); animation: pulse 1.5s infinite; }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    /* Main Card */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    /* Mode Switcher */
+    .mode-switch {
+      display: flex;
+      background: var(--bg);
+      padding: 4px;
+      border-radius: 12px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Input Area */
+    .input-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      background: #f8fafc;
+      padding: 16px;
+      font-size: 18px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      transition: all 0.2s;
+      color: var(--text);
+      font-family: inherit;
+    }
+
+    textarea:focus {
+      background: var(--surface);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+
+    textarea::placeholder {
+      color: #94a3b8;
+    }
+
+    /* Controls Header within Card */
+    .controls-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .manual-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 0;
+    }
+
+    .toggle-switch {
+      width: 44px;
+      height: 24px;
+      background: #cbd5e1;
+      border-radius: 999px;
+      position: relative;
+      transition: background 0.3s;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+    }
+
+    input[type="checkbox"] { display: none; }
+    input:checked + label .toggle-switch { background: var(--primary); }
+    input:checked + label .toggle-switch::after { transform: translateX(20px); }
+    
+    .manual-label-text {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text);
+    }
+
+    /* Action Buttons */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+    }
+
+    .btn {
+      border: none;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+    }
+    
+    .btn-secondary {
+      background: white;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: #f8fafc; }
+
+    .btn-danger {
+        color: var(--error);
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+    }
+
+    .secondary-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+    }
+    
+    .btn-small {
+        padding: 10px;
+        font-size: 13px;
+        flex: 1;
+    }
+
+    /* Log Area */
+    .log-wrapper {
+        height: 140px;
+        background: #1e293b; /* Slate 800 */
+        border-radius: var(--radius);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        box-shadow: var(--shadow);
+    }
+    
+    .log-header {
+        padding: 8px 12px;
+        background: #0f172a; /* Slate 900 */
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .log-content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    
+    .log-entry { 
+        margin-bottom: 6px; 
+        word-break: break-all;
+        animation: fadeIn 0.2s ease-out;
+    }
+    .log-time { color: #64748b; margin-right: 8px; user-select: none; }
+    .log-msg { color: #e2e8f0; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .log-content::-webkit-scrollbar-thumb { background: #475569; }
+
   </style>
 </head>
 <body>
-  <h2>手机输入 → 电脑同步</h2>
+  <div class="container">
+    <header>
+      <h1>🎙️ 局域网输入</h1>
+      <div class="status-badge disconnected" id="statusBadge">
+        <div class="status-dot"></div>
+        <span id="statusText">未连接</span>
+      </div>
+    </header>
 
-  <div class="hint">
-    ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入<br/>
-  </div>
-  <div class="mode-row">
-    <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
-    <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
-  </div>
-  <div style="margin-top: 12px; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-    <input type="checkbox" id="manualModeCheck" style="transform: scale(1.3); cursor: pointer;">
-    <label for="manualModeCheck" style="font-size: 16px; color: #333; cursor: pointer; font-weight: bold;">☑️ 仅手动发送 (输入完点发送)</label>
-  </div>
-  <div style="width: 100%">
-    <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
-  </div>
-  <div>
-    <button id="sendBtn" class="action-btn">📤 手动发送</button>
-    <button id="resendBtn" class="action-btn">🔄 重发</button>
-    <button id="reconnectBtn" class="action-btn">🔌 重连</button>
-    <button id="clearBtn" class="action-btn">🧹 清空</button>
-    <button id="testBtn" style="display: none;">🧪 测试注入</button>
-  </div>
+    <div class="card">
+      <div class="mode-switch">
+        <button class="mode-btn active" id="modeTextBtn">✍ 文字模式</button>
+        <button class="mode-btn" id="modeCmdBtn">⚡ 命令模式</button>
+      </div>
 
-  <div class="status" id="status">状态：未连接</div>
-  <div id="log"></div>
+      <div class="controls-header">
+        <input type="checkbox" id="manualModeCheck">
+        <label for="manualModeCheck" class="manual-toggle">
+          <div class="toggle-switch"></div>
+          <span class="manual-label-text">手动发送模式</span>
+        </label>
+      </div>
+
+      <div class="input-wrapper">
+        <textarea id="inputBox" placeholder="点击此处，开始语音输入..."></textarea>
+      </div>
+
+      <div class="action-grid">
+        <button id="sendBtn" class="btn btn-primary">
+          📤 发送
+        </button>
+        <button id="resendBtn" class="btn btn-secondary">
+          🔄 重发
+        </button>
+      </div>
+      
+      <div class="secondary-actions">
+          <button id="clearBtn" class="btn btn-secondary btn-small">🧹 清空</button>
+          <button id="reconnectBtn" class="btn btn-secondary btn-small">🔌 重连</button>
+          <button id="testBtn" class="btn btn-secondary btn-small" style="display: none;">🧪 测试</button>
+      </div>
+    </div>
+
+    <div class="log-wrapper">
+        <div class="log-header">
+            <span>System Log</span>
+            <span style="cursor:pointer" onclick="document.getElementById('log').innerHTML=''">CLEAR</span>
+        </div>
+        <div class="log-content" id="log"></div>
+    </div>
+  </div>
 
 <script>
 let ws;
@@ -62,20 +405,38 @@ let lastSentTime = 0;
 let lastManualText = "";
 const DUP_WINDOW_MS = 1500;
 
-const logLines = [];
-const MAX_LOG_LINES = 300;
+const MAX_LOG_LINES = 100; // Reduced for UI cleanliness
 
 function log(msg){
   const el = document.getElementById("log");
-  const time = new Date().toLocaleTimeString();
-  logLines.unshift(`[${time}] ${msg}`);
-  if(logLines.length > MAX_LOG_LINES) logLines.length = MAX_LOG_LINES;
-  el.textContent = logLines.join("\n") + "\n";
-  el.scrollTop = 0;
+  const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
+  
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg">${msg}</span>`;
+  
+  // Insert at top
+  el.insertBefore(div, el.firstChild);
+  
+  if(el.children.length > MAX_LOG_LINES) {
+    el.removeChild(el.lastChild);
+  }
 }
 
-function setStatus(msg){
-  document.getElementById("status").textContent = "状态：" + msg;
+function setStatus(msg, type = 'normal'){
+  const badge = document.getElementById("statusBadge");
+  const text = document.getElementById("statusText");
+  
+  text.textContent = msg;
+  badge.className = 'status-badge'; // reset
+  
+  if(msg.includes("已连接")) {
+      badge.classList.add('connected');
+  } else if (msg.includes("断开") || msg.includes("错误")) {
+      badge.classList.add('disconnected');
+  } else if (msg.includes("连接") || msg.includes("中")) {
+      badge.classList.add('connecting');
+  }
 }
 
 function setMode(mode){
@@ -109,39 +470,48 @@ async function connectWS(){
   isConnecting = true;
   const wsPort = await resolveWSPort();
   const wsUrl = `ws://${location.hostname}:${wsPort}`;
-  setStatus("⏳ 正在连接...");
+  
+  setStatus("连接中...");
   log("⏳ 正在连接到：" + wsUrl);
-  ws = new WebSocket(wsUrl);
+  
+  try {
+      ws = new WebSocket(wsUrl);
+  } catch(e) {
+      isConnecting = false;
+      setStatus("连接失败");
+      log("❌ 创建 WebSocket 失败");
+      return;
+  }
 
   ws.onopen = () => {
     isConnecting = false;
     manualClosing = false;
-    setStatus("✅ WebSocket 已连接");
-    log("✅ 已连接到：" + wsUrl);
+    setStatus("已连接");
+    log("✅ 已连接到服务器");
   };
 
   ws.onclose = () => {
     isConnecting = false;
-    setStatus("❌ WebSocket 断开");
+    setStatus("已断开");
     if(manualClosing){
       manualClosing = false;
-      log("🔌 已断开（手动重连中）");
+      log("🔌 已手动断开");
       return;
     }
-    log("❌ 连接断开（可点“重连”）");
+    log("❌ 连接断开");
   };
 
   ws.onerror = () => {
     isConnecting = false;
-    setStatus("❌ 连接错误");
-    log("❌ WebSocket 错误（可点“重连”）");
+    setStatus("连接错误");
+    log("❌ WebSocket 错误");
   };
 
   ws.onmessage = (event) => {
     try{
       const data = JSON.parse(event.data);
       if(data && data.type === "cmd_result"){
-        log("✅ 收到命令结果：" + data.message);
+        log("✅ 命令结果：" + data.message);
       }
     }catch(e){
       // ignore non-JSON
@@ -161,7 +531,7 @@ function sendText(text, force = false){
   const now = Date.now();
   const dedupKey = currentMode + "::" + text;
   if(!force && dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
-    log("⏭️ 去重：短时间相同内容不发送 -> " + text);
+    log("⏭️ 忽略重复发送");
     return;
   }
   lastSentMsg = dedupKey;
@@ -170,9 +540,9 @@ function sendText(text, force = false){
   if(ws && ws.readyState === 1){
     const payload = { type: currentMode, string: text };
     ws.send(JSON.stringify(payload));
-    log("📤 发送(" + (currentMode === "text" ? "文字" : "命令") + ")：" + text);
+    log("📤 " + (currentMode === "text" ? "发送" : "命令") + "：" + text);
   } else {
-    log("⚠️ 未连接 WebSocket，无法发送");
+    log("⚠️ 未连接，发送失败");
   }
 }
 
@@ -185,20 +555,23 @@ document.getElementById("sendBtn").onclick = () => {
     box.value = "";
     lastSentText = "";
     box.focus();
+  } else {
+      // visual feedback for empty send
+      log("⚠️ 内容为空");
   }
 };
 
 document.getElementById("resendBtn").onclick = () => {
   if(!lastManualText){
-    log("⚠️ 没有可重发的内容");
+    log("⚠️ 无历史内容");
     return;
   }
-  log("🔄 正在重发...");
-  sendText(lastManualText, true); // 强制发送，忽略去重
+  log("🔄 重发...");
+  sendText(lastManualText, true);
 };
 
 document.getElementById("reconnectBtn").onclick = async () => {
-  log("🔌 手动重连...");
+  log("🔌 尝试重连...");
   try{
     if(ws && (ws.readyState === 0 || ws.readyState === 1)){
       manualClosing = true;
@@ -214,13 +587,12 @@ document.getElementById("clearBtn").onclick = () => {
   const box = document.getElementById("inputBox");
   box.value = "";
   lastSentText = "";
-  logLines.length = 0;
-  document.getElementById("log").textContent = "";
+  document.getElementById("log").innerHTML = "";
   box.focus();
 };
 
 document.getElementById("testBtn").onclick = () => {
-  log("🧪 发送测试注入指令：请把鼠标放在记事本输入区");
+  log("🧪 测试注入指令");
   sendText("__TEST_INJECT__");
 };
 
@@ -251,7 +623,7 @@ function flushDelta(){
       lastSentText = current;
     }
   }else{
-    log("✏️ 检测到编辑历史内容：请点【手动发送】发送全文（自动增量暂停）");
+    log("✏️ 检测到历史编辑，请手动发送");
   }
 }
 </script>

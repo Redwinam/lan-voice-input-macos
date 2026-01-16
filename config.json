@@ -1,26 +1,4 @@
 {
-  "user_ip": "192.168.2.110",
-  "commands": [
-    {
-      "name": "Network Diagnostics",
-      "description": "Run a series of network diagnostic commands to check connectivity and performance.",
-      "match-string": "ping",
-      "command": "ping",
-      "args": ["-c", "4", "google.com"]
-    },
-    {
-      "name": "Network Diagnostics",
-      "description": "Run a series of network diagnostic commands to check connectivity and performance.",
-      "match-string": "traceroute",
-      "command": "traceroute",
-      "args": ["google.com"]
-    },
-    {
-      "name": "重启电脑",
-      "description": "重新启动电脑",
-      "match-string": "重启电脑",
-      "command": "shutdown -r  now",
-      "args": []
-    }
-  ]
+  "user_ip": null,
+  "commands": []
 }

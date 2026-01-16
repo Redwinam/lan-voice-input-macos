@@ -376,16 +376,63 @@ def parse_windows_ipconfig() -> List[Tuple[str, str]]:
     return dedup
 
 
+def parse_unix_ifconfig() -> List[Tuple[str, str]]:
+    """
+    macOS/Linux: 解析 ifconfig，尽量拿到 "网卡名 + IPv4"
+    返回 [(label, ip), ...]
+    """
+    if IS_WINDOWS:
+        return []
+
+    ips = []
+    try:
+        # standard ifconfig
+        out = subprocess.check_output(["ifconfig"], text=True)
+        # We want to map interface names to IPs if possible
+        # format:
+        # en0: flags=...
+        #    inet 192.168.31.218 ...
+        
+        current_iface = None
+        for line in out.splitlines():
+            if line.strip() == "": continue
+            
+            # Interface start
+            if not line.startswith("\t") and not line.startswith(" "):
+                # en0: ...
+                if ":" in line:
+                    current_iface = line.split(":")[0]
+            
+            # Inet line
+            if "inet " in line:
+                # inet 192.168.31.218 netmask ...
+                parts = line.split()
+                try:
+                    idx = parts.index("inet")
+                    ip = parts[idx+1]
+                    if is_candidate_ipv4(ip):
+                        label = f"{current_iface} - {ip}" if current_iface else ip
+                        ips.append((label, ip))
+                except:
+                    pass
+    except Exception:
+        pass
+    return ips
+
+
 def get_ipv4_candidates() -> List[Tuple[str, str]]:
     """
     综合获取候选 IP：
     1) Windows: ipconfig（含网卡名）
-    2) hostname 的 IPv4
-    3) 自动推荐（默认出口）
+    2) macOS/Linux: ifconfig
+    3) hostname 的 IPv4
+    4) 自动推荐（默认出口）
     """
     candidates: List[Tuple[str, str]] = []
     if IS_WINDOWS:
         candidates.extend(parse_windows_ipconfig())
+    else:
+        candidates.extend(parse_unix_ifconfig())
 
 
     try:
@@ -425,7 +472,7 @@ def get_effective_ip() -> str:
 def build_urls(ip: str):
     global QR_URL, QR_PAYLOAD_URL
     QR_URL = f"http://{ip}:{HTTP_PORT}"
-    QR_PAYLOAD_URL = f"{QR_URL}?ws={WS_PORT}"
+    QR_PAYLOAD_URL = f"{QR_URL}/"
 
 
 # ===================== Tk 二维码窗口（内置网卡选择 + 同步刷新）=====================
@@ -920,13 +967,55 @@ def start_services(open_qr: bool = False):
 
         HTTP_PORT = choose_free_port(DEFAULT_HTTP_PORT)
         WS_PORT = choose_free_port(DEFAULT_WS_PORT)
-        build_urls(get_effective_ip())
+
+        # Select best IP
+        candidates = get_ipv4_candidates()
+        best_ip = None
+        if USER_IP and USER_IP.strip():
+            best_ip = USER_IP.strip()
+        else:
+            # 优先 en0 (macOS Wi-Fi)
+            for label, ip in candidates:
+                if label.startswith("en0"):
+                    best_ip = ip
+                    break
+            
+            # 其次 192.168
+            if not best_ip:
+                for _, ip in candidates:
+                    if ip.startswith("192.168."):
+                        best_ip = ip
+                        break
+            # 其次 172.16-31, 10.
+            if not best_ip:
+                for _, ip in candidates:
+                    if ip.startswith("172.") or ip.startswith("10."):
+                         best_ip = ip
+                         break
+            if not best_ip:
+                 best_ip = get_lan_ip_best_effort()
+
+        build_urls(best_ip)
         SERVICE_RUNNING = True
 
     print("\n======================================")
     print("✅ 已启动（服务已开启）")
-    print("📱 手机打开：", QR_PAYLOAD_URL)
-    print("HTTP:", HTTP_PORT, "WS:", WS_PORT)
+    print("📱 手机打开（请确保在同一局域网）：")
+    
+    seen_urls = set()
+    if QR_PAYLOAD_URL:
+        print(f"   👉 {QR_PAYLOAD_URL} (默认)")
+        seen_urls.add(QR_PAYLOAD_URL)
+
+    # 列出所有可能
+    all_candidates = get_ipv4_candidates()
+    for label, ip in all_candidates:
+        url = f"http://{ip}:{HTTP_PORT}/"
+        if url not in seen_urls:
+            print(f"      {url}  [{label}]")
+            seen_urls.add(url)
+
+    print(f"HTTP: {HTTP_PORT} WS: {WS_PORT}")
     print("======================================\n")
 
     HTTP_THREAD = threading.Thread(target=_run_http_server_forever, daemon=True)
