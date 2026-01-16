@@ -835,7 +835,7 @@ def run_http():
 
 
 def tray_show_qr(icon, _):
-    qr_mgr.show()
+    open_qr_image(QR_PAYLOAD_URL)
 
 
 def tray_quit(icon, _):
@@ -846,16 +846,19 @@ def tray_quit(icon, _):
 
 def run_tray():
     global tray_icon
-    imagePath = resource_path("logo.png")
-    if not os.path.exists(imagePath):
-        # Fallback if logo.png doesn't exist, try icon.ico or generic
-        imagePath = resource_path("icon.ico")
+    candidate_paths = []
+    if IS_MACOS:
+        candidate_paths.append(resource_path("icon.icns"))
+    candidate_paths.append(resource_path("logo.png"))
+    candidate_paths.append(resource_path("icon.ico"))
+    imagePath = next((p for p in candidate_paths if os.path.exists(p)), None)
         
     menu = (
         item("显示二维码", tray_show_qr),
         item("退出", tray_quit),
     )
-    tray_icon = pystray.Icon("LANVoiceInput", Image.open(imagePath), "LAN Voice Input", menu)
+    image = Image.open(imagePath) if imagePath else Image.new("RGB", (64, 64), (0, 0, 0))
+    tray_icon = pystray.Icon("LANVoiceInput", image, "LAN Voice Input", menu)
     tray_icon.on_double_click = tray_show_qr
     tray_icon.run()
 
