@@ -58,7 +58,8 @@ python3 -m pip install pyinstaller
 ### 2. 生成 .app
 在项目根目录执行：
 ```bash
-pyinstaller server.py \
+source venv/bin/activate
+python -m PyInstaller server.py \
   --name "LAN Voice Input" \
   --windowed \
   --icon icon.icns \
