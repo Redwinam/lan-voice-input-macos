@@ -9,21 +9,21 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
 import shlex
+import queue
 
 import pyautogui
 import pystray
 import qrcode
 import websockets
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image
 from flask import Flask, send_file, jsonify
 from pystray import MenuItem as item
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
-# queue 用于 Tk 线程
-import queue
 import platform
 
 IS_WINDOWS = platform.system() == "Windows"
@@ -57,6 +57,7 @@ CLEAR_BACKSPACE_MAX = 200
 TEST_INJECT_TEXT = "[SendInput Test] 123 ABC 中文 测试"
 
 SERVER_DEDUP_WINDOW_SEC = 1.2
+HISTORY_MAX_LEN = 300
 
 # WebSocket 心跳（让断线更快被识别）
 WS_PING_INTERVAL = 20
@@ -224,15 +225,40 @@ def notify(title: str, msg: str, duration=3):
     
     # macOS Notification (osascript)
     if IS_MACOS:
-        def _notify_macos():
-            try:
-                # 使用 AppleScript 发送通知
-                # display notification "message" with title "title"
-                script = f'display notification "{msg}" with title "{title}"'
-                subprocess.run(["osascript", "-e", script])
-            except Exception:
-                pass
-        threading.Thread(target=_notify_macos, daemon=True).start()
+        _enqueue_macos_notification(title, msg)
+
+
+_macos_notify_queue = queue.SimpleQueue()
+_macos_notify_started = False
+_macos_notify_lock = threading.Lock()
+
+
+def _ensure_macos_notify_worker():
+    global _macos_notify_started
+    if _macos_notify_started:
+        return
+    with _macos_notify_lock:
+        if _macos_notify_started:
+            return
+        threading.Thread(target=_macos_notify_worker, daemon=True).start()
+        _macos_notify_started = True
+
+
+def _enqueue_macos_notification(title: str, msg: str):
+    _ensure_macos_notify_worker()
+    _macos_notify_queue.put((str(title), str(msg)))
+
+
+def _macos_notify_worker():
+    while True:
+        title, msg = _macos_notify_queue.get()
+        try:
+            safe_title = str(title).replace("\\", "\\\\").replace('"', '\\"')
+            safe_msg = str(msg).replace("\\", "\\\\").replace('"', '\\"')
+            script = f'display notification "{safe_msg}" with title "{safe_title}"'
+            subprocess.run(["osascript", "-e", script], timeout=2)
+        except Exception:
+            pass
 
 
 # ===================== 自动选择可用端口 =====================
@@ -540,7 +566,7 @@ class CommandResult:
 class CommandProcessor:
     def __init__(self):
         self.paused = False
-        self.history = []
+        self.history = deque(maxlen=HISTORY_MAX_LEN)
         self.alias = {"豆号": "逗号", "都好": "逗号", "据号": "句号", "聚好": "句号", "句点": "句号"}
         self.punc_map = {"逗号": "，", "句号": "。", "问号": "？", "感叹号": "！", "冒号": "：", "分号": "；", "顿号": "、"}
 
@@ -591,6 +617,9 @@ class CommandProcessor:
 
     def record_output(self, out: str):
         if out and out != "\n":
+            out = str(out)
+            if len(out) > 4000:
+                out = out[:4000]
             self.history.append(out)
 
 
@@ -771,7 +800,10 @@ async def ws_main():
     async with websockets.serve(
         ws_handler, "0.0.0.0", WS_PORT,
         ping_interval=WS_PING_INTERVAL,
-        ping_timeout=WS_PING_TIMEOUT
+        ping_timeout=WS_PING_TIMEOUT,
+        max_size=1_000_000,
+        max_queue=32,
+        compression=None,
     ):
         print(f"WebSocket running at ws://0.0.0.0:{WS_PORT}")
         await asyncio.Future()

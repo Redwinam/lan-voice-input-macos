@@ -56,12 +56,18 @@ let currentMode = "text";
 let lastSentText = "";
 let lastSentMsg = "";
 let lastSentTime = 0;
+let lastManualText = "";
 const DUP_WINDOW_MS = 1500;
+
+const logLines = [];
+const MAX_LOG_LINES = 300;
 
 function log(msg){
   const el = document.getElementById("log");
   const time = new Date().toLocaleTimeString();
-  el.textContent = `[${time}] ${msg}\n` + el.textContent;
+  logLines.unshift(`[${time}] ${msg}`);
+  if(logLines.length > MAX_LOG_LINES) logLines.length = MAX_LOG_LINES;
+  el.textContent = logLines.join("\n") + "\n";
   el.scrollTop = 0;
 }
 
@@ -132,13 +138,13 @@ window.onload = () => {
   setTimeout(() => document.getElementById("inputBox").focus(), 200);
 };
 
-function sendText(text){
+function sendText(text, force = false){
   text = (text || "").trim();
   if(!text) return;
 
   const now = Date.now();
   const dedupKey = currentMode + "::" + text;
-  if(dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
+  if(!force && dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
     log("⏭️ 去重：短时间相同内容不发送 -> " + text);
     return;
   }
@@ -179,6 +185,7 @@ document.getElementById("clearBtn").onclick = () => {
   const box = document.getElementById("inputBox");
   box.value = "";
   lastSentText = "";
+  logLines.length = 0;
   document.getElementById("log").textContent = "";
   box.focus();
 };
