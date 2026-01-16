@@ -40,6 +40,7 @@
   <div>
     <button id="sendBtn" class="action-btn">📤 手动发送</button>
     <button id="resendBtn" class="action-btn">🔄 重发</button>
+    <button id="reconnectBtn" class="action-btn">🔌 重连</button>
     <button id="clearBtn" class="action-btn">🧹 清空</button>
     <button id="testBtn" style="display: none;">🧪 测试注入</button>
   </div>
@@ -52,6 +53,8 @@ let ws;
 let timer = null;
 let isComposing = false;
 let currentMode = "text";
+let isConnecting = false;
+let manualClosing = false;
 
 let lastSentText = "";
 let lastSentMsg = "";
@@ -102,23 +105,36 @@ async function resolveWSPort(){
 }
 
 async function connectWS(){
+  if(isConnecting) return;
+  isConnecting = true;
   const wsPort = await resolveWSPort();
   const wsUrl = `ws://${location.hostname}:${wsPort}`;
+  setStatus("⏳ 正在连接...");
+  log("⏳ 正在连接到：" + wsUrl);
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
+    isConnecting = false;
+    manualClosing = false;
     setStatus("✅ WebSocket 已连接");
     log("✅ 已连接到：" + wsUrl);
   };
 
   ws.onclose = () => {
+    isConnecting = false;
     setStatus("❌ WebSocket 断开");
-    log("❌ 连接断开");
+    if(manualClosing){
+      manualClosing = false;
+      log("🔌 已断开（手动重连中）");
+      return;
+    }
+    log("❌ 连接断开（可点“重连”）");
   };
 
   ws.onerror = () => {
+    isConnecting = false;
     setStatus("❌ 连接错误");
-    log("❌ WebSocket 错误");
+    log("❌ WebSocket 错误（可点“重连”）");
   };
 
   ws.onmessage = (event) => {
@@ -179,6 +195,19 @@ document.getElementById("resendBtn").onclick = () => {
   }
   log("🔄 正在重发...");
   sendText(lastManualText, true); // 强制发送，忽略去重
+};
+
+document.getElementById("reconnectBtn").onclick = async () => {
+  log("🔌 手动重连...");
+  try{
+    if(ws && (ws.readyState === 0 || ws.readyState === 1)){
+      manualClosing = true;
+      ws.close();
+    }
+  }catch(e){
+    // ignore
+  }
+  connectWS();
 };
 
 document.getElementById("clearBtn").onclick = () => {
