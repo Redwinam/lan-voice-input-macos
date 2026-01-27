@@ -45,6 +45,7 @@
       flex-direction: column;
       padding: 16px;
       gap: 16px;
+      overflow: scroll;
     }
 
     /* Header */
@@ -112,20 +113,20 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
-      flex: 1;
-      min-height: 0;
+      /* flex: 1; */
+      /* min-height: 0; */
       position: relative;
     }
 
-    /* Mode Switcher */
-    .mode-switch {
+    /* Send Mode Tabs (Top) */
+    .send-mode-tabs {
       display: flex;
       background: var(--bg);
       padding: 4px;
       border-radius: 12px;
     }
 
-    .mode-btn {
+    .tab-btn {
       flex: 1;
       border: none;
       background: transparent;
@@ -138,23 +139,28 @@
       transition: all 0.2s;
     }
 
-    .mode-btn.active {
+    .tab-btn.active {
       background: var(--surface);
       color: var(--primary);
       box-shadow: var(--shadow-sm);
     }
 
-    /* Input Area */
-    .input-wrapper {
-      flex: 0 0 auto;
+    /* Input & Button Container (Side-by-Side) */
+    .input-row {
       display: flex;
-      flex-direction: column;
+      gap: 12px;
+      height: 180px; /* Fixed height for consistency */
+    }
+
+    .input-wrapper {
+      flex: 1;
+      height: 100%;
       position: relative;
     }
 
     textarea {
       width: 100%;
-      height: clamp(120px, 22vh, 220px);
+      height: 100%;
       border: 2px solid transparent;
       border-radius: 12px;
       background: #f8fafc;
@@ -178,84 +184,34 @@
       color: #94a3b8;
     }
 
-    /* Controls Header within Card */
-    .controls-header {
+    /* Vertical Button Stack */
+    .btn-stack {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-    }
-
-    .manual-toggle {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      user-select: none;
-      padding: 4px 0;
-    }
-
-    .toggle-switch {
-      width: 44px;
-      height: 24px;
-      background: #cbd5e1;
-      border-radius: 999px;
-      position: relative;
-      transition: background 0.3s;
-    }
-
-    .toggle-switch::after {
-      content: '';
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-      box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
-    }
-
-    input[type="checkbox"] { display: none; }
-    input:checked + label .toggle-switch { background: var(--primary); }
-    input:checked + label .toggle-switch::after { transform: translateX(20px); }
-    
-    .manual-label-text {
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--text);
-    }
-
-    /* Action Buttons */
-    .action-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 12px;
+      flex-direction: column;
+      gap: 8px;
+      width: 90px; /* Fixed width for buttons */
     }
 
     .btn {
       border: none;
-      padding: 14px;
-      border-radius: 12px;
-      font-size: 15px;
+      border-radius: 10px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      position: relative;
-      overflow: hidden;
+      flex: 1; /* Distribute height equally */
+      padding: 0;
     }
 
-    .btn:active { transform: scale(0.98); }
+    .btn:active { transform: scale(0.96); }
 
     .btn-primary {
       background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
       color: white;
-      box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
     }
     
     .btn-secondary {
@@ -265,27 +221,130 @@
     }
     .btn-secondary:hover { background: #f8fafc; }
 
-    .btn-danger {
-        color: var(--error);
-        background: #fef2f2;
-        border: 1px solid #fecaca;
+    /* Mode Toggle Area (Bottom) */
+    .mode-toggle-area {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
     }
 
-    .secondary-actions {
-        display: flex;
-        gap: 10px;
-        margin-top: 4px;
+    .toggle-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    
-    .btn-small {
-        padding: 10px;
-        font-size: 13px;
-        flex: 1;
+
+    .toggle-switch-label {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+    }
+
+    .toggle-switch-label input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #cbd5e1;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    input:checked + .slider {
+      background-color: var(--warning); /* Use warning color for Command Mode to differentiate */
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    .mode-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .help-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: help;
+      position: relative;
+    }
+
+    .popover {
+      position: absolute;
+      bottom: 30px;
+      right: 0; /* Align right */
+      left: auto;
+      transform: none;
+      width: 240px;
+      padding: 12px;
+      background: #1e293b;
+      color: white;
+      font-size: 12px;
+      border-radius: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s;
+      z-index: 10;
+      text-align: left; /* Left align text */
+      line-height: 1.4;
+    }
+
+    .help-icon:hover .popover, .help-icon:active .popover, .help-icon.active .popover {
+      opacity: 1;
+      visibility: visible;
+      bottom: 36px;
+    }
+
+    .popover::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      right: 6px; /* Align arrow with icon */
+      left: auto;
+      margin-left: 0;
+      border-width: 6px;
+      border-style: solid;
+      border-color: #1e293b transparent transparent transparent;
     }
 
     /* Log Area */
     .log-wrapper {
-        height: 140px;
+        flex: 1; /* Fill remaining space */
+        min-height: 100px;
         background: #1e293b; /* Slate 800 */
         border-radius: var(--radius);
         overflow: hidden;
@@ -293,6 +352,15 @@
         flex-direction: column;
         flex-shrink: 0;
         box-shadow: var(--shadow);
+    }
+    
+    /* Responsive Button Icons */
+    .btn-icon {
+      display: none;
+      margin-right: 6px;
+    }
+    @media (min-width: 600px) {
+      .btn-icon { display: inline; }
     }
     
     .log-header {
@@ -349,36 +417,43 @@
     </header>
 
     <div class="card">
-      <div class="mode-switch">
-        <button class="mode-btn active" id="modeTextBtn">✍ 文字模式</button>
-        <button class="mode-btn" id="modeCmdBtn">⚡ 命令模式</button>
+      <!-- Send Mode Tabs -->
+      <div class="send-mode-tabs">
+        <button class="tab-btn" id="tabAuto">⚡ 自动发送</button>
+        <button class="tab-btn active" id="tabManual">📤 手动发送</button>
       </div>
 
-      <div class="controls-header">
-        <input type="checkbox" id="manualModeCheck">
-        <label for="manualModeCheck" class="manual-toggle">
-          <div class="toggle-switch"></div>
-          <span class="manual-label-text">手动发送模式</span>
-        </label>
+      <!-- Input and Buttons Row -->
+      <div class="input-row">
+        <div class="input-wrapper">
+          <textarea id="inputBox" placeholder="点击此处，开始语音输入..."></textarea>
+        </div>
+        <div class="btn-stack">
+          <button id="sendBtn" class="btn btn-primary">发送</button>
+          <button id="resendBtn" class="btn btn-secondary">重发</button>
+          <button id="clearBtn" class="btn btn-secondary">清空</button>
+          <button id="reconnectBtn" class="btn btn-secondary">重连</button>
+          <button id="testBtn" class="btn btn-secondary" style="display: none;">测试</button>
+        </div>
       </div>
 
-      <div class="input-wrapper">
-        <textarea id="inputBox" placeholder="点击此处，开始语音输入..."></textarea>
-      </div>
-
-      <div class="action-grid">
-        <button id="sendBtn" class="btn btn-primary">
-          📤 发送
-        </button>
-        <button id="resendBtn" class="btn btn-secondary">
-          🔄 重发
-        </button>
-      </div>
-      
-      <div class="secondary-actions">
-          <button id="clearBtn" class="btn btn-secondary btn-small">🧹 清空</button>
-          <button id="reconnectBtn" class="btn btn-secondary btn-small">🔌 重连</button>
-          <button id="testBtn" class="btn btn-secondary btn-small" style="display: none;">🧪 测试</button>
+      <!-- Mode Toggle (Text/Cmd) -->
+      <div class="mode-toggle-area">
+        <div class="toggle-wrapper">
+          <label class="toggle-switch-label">
+            <input type="checkbox" id="modeToggle">
+            <span class="slider"></span>
+          </label>
+          <span class="mode-label" id="modeLabel">✍ 文字模式</span>
+        </div>
+        
+        <div class="help-icon">
+          ?
+          <div class="popover">
+            <b>文字模式</b>: 普通输入<br>
+            <b>命令模式</b>: 发送指令 (如 "回车", "删除")
+          </div>
+        </div>
       </div>
     </div>
 
@@ -398,6 +473,7 @@ let isComposing = false;
 let currentMode = "text";
 let isConnecting = false;
 let manualClosing = false;
+let isManualSendMode = true; // Default to Manual
 
 let lastSentText = "";
 let lastSentMsg = "";
@@ -405,7 +481,7 @@ let lastSentTime = 0;
 let lastManualText = "";
 const DUP_WINDOW_MS = 1500;
 
-const MAX_LOG_LINES = 100; // Reduced for UI cleanliness
+const MAX_LOG_LINES = 100;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 let pendingConnectToken = 0;
@@ -423,7 +499,6 @@ function log(msg){
   div.className = 'log-entry';
   div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg">${msg}</span>`;
   
-  // Insert at top
   el.insertBefore(div, el.firstChild);
   
   if(el.children.length > MAX_LOG_LINES) {
@@ -436,7 +511,7 @@ function setStatus(msg, type = 'normal'){
   const text = document.getElementById("statusText");
   
   text.textContent = msg;
-  badge.className = 'status-badge'; // reset
+  badge.className = 'status-badge'; 
   
   if(msg.includes("已连接")) {
       badge.classList.add('connected');
@@ -447,12 +522,36 @@ function setStatus(msg, type = 'normal'){
   }
 }
 
-function setMode(mode){
-  currentMode = mode;
-  document.getElementById("modeTextBtn").classList.toggle("active", mode === "text");
-  document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
-  log("✅ 切换模式：" + (mode === "text" ? "文字" : "命令"));
+// Send Mode Logic
+function setSendMode(manual){
+  isManualSendMode = manual;
+  document.getElementById("tabAuto").classList.toggle("active", !manual);
+  document.getElementById("tabManual").classList.toggle("active", manual);
+  log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
 }
+
+document.getElementById("tabAuto").onclick = () => setSendMode(false);
+document.getElementById("tabManual").onclick = () => setSendMode(true);
+
+// Text/Cmd Mode Logic
+function toggleInputMode(){
+  const isCmd = document.getElementById("modeToggle").checked;
+  currentMode = isCmd ? "cmd" : "text";
+  document.getElementById("modeLabel").textContent = isCmd ? "⚡ 命令模式" : "✍ 文字模式";
+  log("✅ 切换模式：" + (isCmd ? "命令" : "文字"));
+}
+
+document.getElementById("modeToggle").onchange = toggleInputMode;
+
+// Popover click handling for mobile
+const helpIcon = document.querySelector('.help-icon');
+helpIcon.addEventListener('click', (e) => {
+  e.stopPropagation();
+  helpIcon.classList.toggle('active');
+});
+document.addEventListener('click', () => {
+  helpIcon.classList.remove('active');
+});
 
 function getWSFromQuery(){
   const url = new URL(location.href);
@@ -666,7 +765,6 @@ document.getElementById("sendBtn").onclick = () => {
     lastSentText = "";
     box.focus();
   } else {
-      // visual feedback for empty send
       log("⚠️ 内容为空");
   }
 };
@@ -707,9 +805,6 @@ document.getElementById("testBtn").onclick = () => {
   sendText("__TEST_INJECT__");
 };
 
-document.getElementById("modeTextBtn").onclick = () => setMode("text");
-document.getElementById("modeCmdBtn").onclick = () => setMode("cmd");
-
 const box = document.getElementById("inputBox");
 box.addEventListener("compositionstart", () => isComposing = true);
 box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
@@ -721,8 +816,8 @@ box.addEventListener("input", () => {
 });
 
 function flushDelta(){
-  // 如果是手动模式，不执行自动发送
-  if(document.getElementById("manualModeCheck").checked) return;
+  // Check global variable instead of checkbox
+  if(isManualSendMode) return;
 
   const current = box.value;
   if(!current.trim()) return;
