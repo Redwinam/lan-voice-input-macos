@@ -228,7 +228,7 @@ def notify(title: str, msg: str, duration=3):
         def _toast():
             try:
                 toast = Notification(
-                    app_id="LAN Voice Input",
+                    app_id="言传",
                     title=title,
                     msg=msg,
                     duration="short"
@@ -1026,7 +1026,7 @@ def start_services(open_qr: bool = False):
     WS_THREAD.start()
     ws_ready.wait(timeout=3)
 
-    notify("LANVoiceInput 服务已启动", f"URL:\n{QR_PAYLOAD_URL}\n\nHTTP:{HTTP_PORT}  WS:{WS_PORT}")
+    notify("言传 服务已启动", f"URL:\n{QR_PAYLOAD_URL}\n\nHTTP:{HTTP_PORT}  WS:{WS_PORT}")
     if open_qr and QR_PAYLOAD_URL:
         threading.Timer(0.3, lambda: open_qr_image(QR_PAYLOAD_URL)).start()
 
@@ -1088,7 +1088,7 @@ def stop_services():
     QR_URL = None
     QR_PAYLOAD_URL = None
 
-    notify("LANVoiceInput 服务已停止", "已关闭 HTTP/WebSocket 监听，释放端口资源")
+    notify("言传 服务已停止", "已关闭 HTTP/WebSocket 监听，释放端口资源")
 
 
 def tray_show_qr(icon, _):
@@ -1180,7 +1180,7 @@ def tray_quit(icon, _):
         stop_services()
     except Exception:
         pass
-    notify("退出", "LAN Voice Input 已退出")
+    notify("退出", "言传 已退出")
     icon.stop()
     os._exit(0)
 
@@ -1202,7 +1202,7 @@ def run_tray():
         item("退出", tray_quit),
     )
     image = Image.open(imagePath) if imagePath else Image.new("RGB", (64, 64), (0, 0, 0))
-    tray_icon = pystray.Icon("LANVoiceInput", image, "LAN Voice Input", menu)
+    tray_icon = pystray.Icon("言传", image, "言传", menu)
     tray_icon.on_double_click = tray_show_qr
     tray_icon.run()
 
