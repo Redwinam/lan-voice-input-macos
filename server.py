@@ -46,6 +46,37 @@ if IS_WINDOWS:
     from ctypes import wintypes
 
 
+def macos_has_accessibility_permission() -> bool:
+    if not IS_MACOS:
+        return True
+    try:
+        import ctypes
+        app_services = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+        app_services.AXIsProcessTrusted.restype = ctypes.c_bool
+        return bool(app_services.AXIsProcessTrusted())
+    except Exception:
+        return True
+
+
+def open_macos_accessibility_settings():
+    if not IS_MACOS:
+        return
+    try:
+        subprocess.Popen(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"])
+    except Exception:
+        pass
+
+
+def ensure_macos_accessibility_permission() -> bool:
+    if not IS_MACOS:
+        return True
+    if macos_has_accessibility_permission():
+        return True
+    notify("需要辅助功能权限", "请在“隐私与安全性 > 辅助功能”中启用“言传”")
+    open_macos_accessibility_settings()
+    return False
+
+
 # ===================== 默认端口（自动选择可用）=====================
 DEFAULT_HTTP_PORT = 8080
 DEFAULT_WS_PORT = 8765
@@ -986,6 +1017,9 @@ def start_services(open_qr: bool = False):
     global HTTP_PORT, WS_PORT, QR_URL, QR_PAYLOAD_URL
     global HTTP_THREAD, WS_THREAD
     global SERVICE_RUNNING
+
+    if not ensure_macos_accessibility_permission():
+        return
 
     with SERVICE_LOCK:
         if SERVICE_RUNNING:
