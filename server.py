@@ -517,7 +517,9 @@ if IS_WINDOWS:
     KEYEVENTF_UNICODE = 0x0004
 
     VK_BACK = 0x08
+    VK_TAB = 0x09
     VK_RETURN = 0x0D
+    VK_ESCAPE = 0x1B
 
     class MOUSEINPUT(ctypes.Structure):
         _fields_ = [
@@ -592,6 +594,12 @@ if IS_WINDOWS:
     def press_enter():
         press_vk(VK_RETURN, times=1)
 
+    def press_tab():
+        press_vk(VK_TAB, times=1)
+
+    def press_esc():
+        press_vk(VK_ESCAPE, times=1)
+
 # --- macOS / Other Implementation ---
 else:
     # 依赖 pyautogui / pyperclip
@@ -619,6 +627,12 @@ else:
 
     def press_enter():
         pyautogui.press('enter')
+
+    def press_tab():
+        pyautogui.press('tab')
+
+    def press_esc():
+        pyautogui.press('esc')
 
 
 # ===================== 指令系统 =====================
@@ -660,8 +674,14 @@ class CommandProcessor:
         if self.paused:
             return CommandResult(True, f"⏸(暂停中) {raw_text}", "")
 
-        if text in ["换行", "回车", "下一行"]:
+        if text in ["换行", "回车", "下一行", "enter", "ENTER", "回车键", "enter键", "Enter"]:
             return CommandResult(True, "↩️ 换行", ("__ENTER__", 1))
+
+        if text in ["tab", "TAB", "制表符", "制表", "tab键", "TAB键", "Tab"]:
+            return CommandResult(True, "↹ TAB", ("__TAB__", 1))
+
+        if text in ["esc", "ESC", "escape", "ESC键", "esc键", "Escape"]:
+            return CommandResult(True, "⎋ ESC", ("__ESC__", 1))
 
         if text in self.punc_map:
             return CommandResult(True, f"⌨️ {text}", self.punc_map[text])
@@ -701,6 +721,12 @@ def execute_output(out):
             return
         if out[0] == "__ENTER__":
             press_enter()
+            return
+        if out[0] == "__TAB__":
+            press_tab()
+            return
+        if out[0] == "__ESC__":
+            press_esc()
             return
     if isinstance(out, str):
         send_unicode_text(out)

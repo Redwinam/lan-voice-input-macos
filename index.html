@@ -55,12 +55,12 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 4px 8px;
+      padding: 0 6px;
     }
 
     h1 {
       margin: 0;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
       background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
       -webkit-background-clip: text;
@@ -406,7 +406,6 @@
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .log-content::-webkit-scrollbar-thumb { background: #475569; }
 
-    /* New Styles for Refresh & Func Buttons */
     .icon-btn {
       background: transparent;
       border: none;
@@ -429,7 +428,7 @@
     }
 
     .mode-toggle-area {
-      flex-wrap: wrap-reverse; /* Key for "buttons above switch when wrapped" */
+      flex-wrap: wrap-reverse;
       gap: 12px;
     }
     
@@ -442,7 +441,7 @@
       gap: 8px;
       align-items: center;
       flex: 1;
-      justify-content: flex-end; /* Align to right */
+      justify-content: flex-end;
     }
 
     .func-btn {
@@ -473,7 +472,7 @@
           <span id="statusText">未连接</span>
         </div>
         <button id="refreshBtn" class="icon-btn" title="重连/刷新">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M23 4v6h-6"></path>
             <path d="M1 20v-6h6"></path>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -520,11 +519,10 @@
         </div>
         
         <div class="func-btn-group">
+          <button class="func-btn" data-cmd="esc">ESC</button>
           <button class="func-btn" data-cmd="tab">TAB</button>
           <button class="func-btn" data-cmd="enter">ENTER</button>
-          <button class="func-btn" data-cmd="esc">ESC</button>
         </div>
-        
         
       </div>
     </div>
@@ -871,15 +869,20 @@ document.getElementById("refreshBtn").onclick = async () => {
 
 document.querySelectorAll('.func-btn').forEach(btn => {
   btn.onclick = (e) => {
-    e.preventDefault(); // Prevent focus loss or other side effects if needed
+    e.preventDefault();
     const cmd = btn.dataset.cmd;
     if(!cmd) return;
     
-    // Force send as command
     if(ws && ws.readyState === 1){
-      const payload = { type: "cmd", string: cmd };
+      const map = {
+        enter: "回车",
+        tab: "tab",
+        esc: "esc"
+      };
+      const text = map[cmd] || cmd;
+      const payload = { type: "text", string: text };
       ws.send(JSON.stringify(payload));
-      log("📤 快捷指令：" + cmd);
+      log("📤 快捷指令：" + cmd.toUpperCase());
     } else {
       log("⚠️ 未连接，发送失败");
     }
