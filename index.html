@@ -151,7 +151,7 @@
     .input-row {
       display: flex;
       gap: 12px;
-      height: 180px; /* Fixed height for consistency */
+      height: 140px; /* Fixed height for consistency */
     }
 
     .input-wrapper {
@@ -406,15 +406,79 @@
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .log-content::-webkit-scrollbar-thumb { background: #475569; }
 
+    /* New Styles for Refresh & Func Buttons */
+    .icon-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .icon-btn:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
+    .icon-btn:active { transform: scale(0.9); }
+    
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-toggle-area {
+      flex-wrap: wrap-reverse; /* Key for "buttons above switch when wrapped" */
+      gap: 12px;
+    }
+    
+    .toggle-wrapper {
+      flex: 0 0 auto;
+    }
+
+    .func-btn-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+      justify-content: flex-end; /* Align to right */
+    }
+
+    .func-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+      min-width: 50px;
+    }
+    .func-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .func-btn:active { transform: scale(0.96); background: #f8fafc; }
+
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>🎙️ 言传</h1>
-      <div class="status-badge disconnected" id="statusBadge">
-        <div class="status-dot"></div>
-        <span id="statusText">未连接</span>
+      <div class="header-right">
+        <div class="status-badge disconnected" id="statusBadge">
+          <div class="status-dot"></div>
+          <span id="statusText">未连接</span>
+        </div>
+        <button id="refreshBtn" class="icon-btn" title="重连/刷新">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -434,7 +498,6 @@
           <button id="sendBtn" class="btn btn-primary" type="submit">发送</button>
           <button id="resendBtn" class="btn btn-secondary" type="button">重发</button>
           <button id="clearBtn" class="btn btn-secondary" type="button">清空</button>
-          <button id="reconnectBtn" class="btn btn-secondary" type="button">重连</button>
           <button id="testBtn" class="btn btn-secondary" type="button" style="display: none;">测试</button>
         </div>
       </form>
@@ -447,15 +510,22 @@
             <span class="slider"></span>
           </label>
           <span class="mode-label" id="modeLabel">✍ 文字模式</span>
-        </div>
-        
-        <div class="help-icon">
+          <div class="help-icon">
           ?
           <div class="popover">
             <b>文字模式</b>: 普通输入<br>
             <b>命令模式</b>: 发送指令 (如 "回车", "删除")
           </div>
         </div>
+        </div>
+        
+        <div class="func-btn-group">
+          <button class="func-btn" data-cmd="tab">TAB</button>
+          <button class="func-btn" data-cmd="enter">ENTER</button>
+          <button class="func-btn" data-cmd="esc">ESC</button>
+        </div>
+        
+        
       </div>
     </div>
 
@@ -785,7 +855,7 @@ document.getElementById("resendBtn").onclick = () => {
   sendText(lastManualText, true);
 };
 
-document.getElementById("reconnectBtn").onclick = async () => {
+document.getElementById("refreshBtn").onclick = async () => {
   log("🔌 尝试重连...");
   try{
     if(ws && (ws.readyState === 0 || ws.readyState === 1)){
@@ -798,6 +868,23 @@ document.getElementById("reconnectBtn").onclick = async () => {
   reconnectAttempt = 0;
   connectWS();
 };
+
+document.querySelectorAll('.func-btn').forEach(btn => {
+  btn.onclick = (e) => {
+    e.preventDefault(); // Prevent focus loss or other side effects if needed
+    const cmd = btn.dataset.cmd;
+    if(!cmd) return;
+    
+    // Force send as command
+    if(ws && ws.readyState === 1){
+      const payload = { type: "cmd", string: cmd };
+      ws.send(JSON.stringify(payload));
+      log("📤 快捷指令：" + cmd);
+    } else {
+      log("⚠️ 未连接，发送失败");
+    }
+  };
+});
 
 document.getElementById("clearBtn").onclick = () => {
   const box = document.getElementById("inputBox");
