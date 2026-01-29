@@ -426,18 +426,18 @@
       </div>
 
       <!-- Input and Buttons Row -->
-      <div class="input-row">
+      <form class="input-row" id="sendForm">
         <div class="input-wrapper">
-          <textarea id="inputBox" placeholder="点击此处，开始语音输入..."></textarea>
+          <textarea id="inputBox" placeholder="点击此处，开始语音输入..." enterkeyhint="send"></textarea>
         </div>
         <div class="btn-stack">
-          <button id="sendBtn" class="btn btn-primary">发送</button>
-          <button id="resendBtn" class="btn btn-secondary">重发</button>
-          <button id="clearBtn" class="btn btn-secondary">清空</button>
-          <button id="reconnectBtn" class="btn btn-secondary">重连</button>
-          <button id="testBtn" class="btn btn-secondary" style="display: none;">测试</button>
+          <button id="sendBtn" class="btn btn-primary" type="submit">发送</button>
+          <button id="resendBtn" class="btn btn-secondary" type="button">重发</button>
+          <button id="clearBtn" class="btn btn-secondary" type="button">清空</button>
+          <button id="reconnectBtn" class="btn btn-secondary" type="button">重连</button>
+          <button id="testBtn" class="btn btn-secondary" type="button" style="display: none;">测试</button>
         </div>
-      </div>
+      </form>
 
       <!-- Mode Toggle (Text/Cmd) -->
       <div class="mode-toggle-area">
@@ -757,19 +757,24 @@ function sendText(text, force = false){
   }
 }
 
-document.getElementById("sendBtn").onclick = () => {
+function handleManualSend(){
   const box = document.getElementById("inputBox");
   const text = box.value;
   if(text){
-    lastManualText = text; // 保存用于重发
+    lastManualText = text;
     sendText(text);
     box.value = "";
     lastSentText = "";
     box.focus();
   } else {
-      log("⚠️ 内容为空");
+    log("⚠️ 内容为空");
   }
-};
+}
+
+document.getElementById("sendForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  handleManualSend();
+});
 
 document.getElementById("resendBtn").onclick = () => {
   if(!lastManualText){
@@ -810,6 +815,17 @@ document.getElementById("testBtn").onclick = () => {
 const box = document.getElementById("inputBox");
 box.addEventListener("compositionstart", () => isComposing = true);
 box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
+box.addEventListener("keydown", (e) => {
+  if(e.key === "Enter" && !e.shiftKey && !isComposing){
+    e.preventDefault();
+    const form = document.getElementById("sendForm");
+    if(form.requestSubmit){
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+  }
+});
 
 box.addEventListener("input", () => {
   clearTimeout(timer);
