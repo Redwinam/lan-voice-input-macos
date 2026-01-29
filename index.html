@@ -228,7 +228,6 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 4px;
     }
 
     .toggle-wrapper {
@@ -411,15 +410,30 @@
       border: none;
       cursor: pointer;
       padding: 6px;
-      border-radius: 50%;
-      color: var(--text-secondary);
+      border-radius: 6px;
+      color: #94a3b8;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
     }
-    .icon-btn:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
-    .icon-btn:active { transform: scale(0.9); }
+
+    .icon-btn:hover {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+
+    .icon-btn:active svg {
+      transform: rotate(180deg);
+    }
+
+    .icon-btn svg {
+      transition: transform 0.3s ease;
+    }
     
     .header-right {
       display: flex;
@@ -445,20 +459,38 @@
     }
 
     .func-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 14px;
-      font-size: 13px;
+      background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 11px;
       font-weight: 600;
-      color: var(--text);
+      font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+      color: #475569;
       cursor: pointer;
-      box-shadow: var(--shadow-sm);
-      transition: all 0.2s;
-      min-width: 50px;
+      box-shadow:
+        0 1px 0 0 #fff inset,
+        0 -1px 0 0 #cbd5e1 inset,
+        0 2px 0 0 #94a3b8;
+      transition: all 0.1s ease;
+      min-width: auto;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
-    .func-btn:hover { border-color: var(--primary); color: var(--primary); }
-    .func-btn:active { transform: scale(0.96); background: #f8fafc; }
+
+    .func-btn:hover {
+      background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+      color: #334155;
+    }
+
+    .func-btn:active {
+      background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+      box-shadow:
+        0 1px 0 0 #e2e8f0 inset,
+        0 -1px 0 0 #94a3b8 inset,
+        0 1px 0 0 #94a3b8;
+      transform: translateY(1px);
+    }
 
   </style>
 </head>
