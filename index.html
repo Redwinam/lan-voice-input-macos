@@ -809,7 +809,6 @@
       }
 
       async function checkHealth(announce = false) {
-        setStatus("检测中", "checking");
         const data = await fetchHealthWithTimeout(HEALTH_CHECK_TIMEOUT_MS);
         if (data && data.ok) {
           setStatus("在线", "online");
