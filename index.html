@@ -697,6 +697,7 @@
         localStorage.setItem(SEND_MODE_CACHE_KEY, manual ? "manual" : "auto");
         log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
         if (manual) {
+          startHealthPolling();
           if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -706,6 +707,8 @@
             ws.close();
           }
         } else {
+          stopHealthPolling();
+          setStatus("连接中", "checking");
           connectWS();
         }
       }
@@ -812,6 +815,11 @@
         checkHealth();
         healthTimer = setInterval(checkHealth, HEALTH_CHECK_INTERVAL_MS);
       }
+      function stopHealthPolling() {
+        if (!healthTimer) return;
+        clearInterval(healthTimer);
+        healthTimer = null;
+      }
 
       function scheduleReconnect() {
         if (manualClosing || isManualSendMode) return;
@@ -837,12 +845,14 @@
             return;
           }
           log("❌ 连接断开");
+          if (!isManualSendMode) setStatus("离线", "offline");
           scheduleReconnect();
         };
 
         ws.onerror = () => {
           isConnecting = false;
           log("❌ WebSocket 错误");
+          if (!isManualSendMode) setStatus("离线", "offline");
           if (!manualClosing) scheduleReconnect();
         };
 
@@ -901,6 +911,7 @@
             reconnectAttempt = 0;
             localStorage.setItem(WS_PORT_CACHE_KEY, String(port));
             log("✅ 已连接到服务器");
+            if (!isManualSendMode) setStatus("在线", "online");
             attachWsRuntimeHandlers();
             resolve(true);
           };
@@ -921,13 +932,25 @@
         });
       }
 
-      async function connectWS() {
-        if (isManualSendMode || isConnecting) return;
+      async function connectWS(force = false) {
+        if (isManualSendMode) return;
+        if (isConnecting && !force) return;
         isConnecting = true;
+        if (force) {
+          pendingConnectToken += 1;
+        }
         const connectId = ++pendingConnectToken;
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
           reconnectTimer = null;
+        }
+        if (force) {
+          try {
+            if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
+              manualClosing = true;
+              ws.close();
+            }
+          } catch (e) {}
         }
         const candidates = await resolveWSPortCandidates();
         for (const port of candidates) {
@@ -939,7 +962,7 @@
         scheduleReconnect();
       }
       if (!isManualSendMode) connectWS();
-      startHealthPolling();
+      if (isManualSendMode) startHealthPolling();
 
       window.onload = () => {
         setTimeout(() => document.getElementById("inputBox").focus(), 200);
@@ -1032,18 +1055,14 @@
       };
 
       document.getElementById("refreshBtn").onclick = async () => {
-        log("🔌 健康检查/重连...");
-        try {
-          if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
-            manualClosing = true;
-            ws.close();
-          }
-        } catch (e) {
-          // ignore
+        if (isManualSendMode) {
+          log("🔌 健康检查...");
+          checkHealth(true);
+          return;
         }
+        log("🔌 重连...");
         reconnectAttempt = 0;
-        connectWS();
-        checkHealth(true);
+        connectWS(true);
       };
 
       const inputBox = document.getElementById("inputBox");

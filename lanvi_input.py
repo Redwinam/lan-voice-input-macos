@@ -125,9 +125,16 @@ else:
             return
         try:
             pyperclip.copy(text)
-            pyautogui.hotkey("command", "v")
+            pyautogui.keyDown("command")
+            pyautogui.press("v")
+            time.sleep(0.03)
         except Exception:
             pass
+        finally:
+            try:
+                pyautogui.keyUp("command")
+            except Exception:
+                pass
 
     def backspace(n: int):
         if n > 0:
