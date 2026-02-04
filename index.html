@@ -1,353 +1,388 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>言传</title>
-  <meta name="application-name" content="言传">
-  <meta name="keywords" content="言传, 局域网语音输入法, 局域网语音输入, LAN Voice Input">
-  <style>
-    :root {
-      --primary: #3b82f6; /* Blue 500 */
-      --primary-hover: #2563eb; /* Blue 600 */
-      --bg: #f1f5f9; /* Slate 100 */
-      --surface: #ffffff;
-      --text: #1e293b; /* Slate 800 */
-      --text-secondary: #64748b; /* Slate 500 */
-      --border: #e2e8f0; /* Slate 200 */
-      --success: #10b981; /* Emerald 500 */
-      --error: #ef4444; /* Red 500 */
-      --warning: #f59e0b; /* Amber 500 */
-      --radius: 16px;
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      --font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>言传</title>
+    <meta name="application-name" content="言传" />
+    <meta name="keywords" content="言传, 局域网语音输入法, 局域网语音输入, LAN Voice Input" />
+    <style>
+      :root {
+        --primary: #3b82f6; /* Blue 500 */
+        --primary-hover: #2563eb; /* Blue 600 */
+        --bg: #f1f5f9; /* Slate 100 */
+        --surface: #ffffff;
+        --text: #1e293b; /* Slate 800 */
+        --text-secondary: #64748b; /* Slate 500 */
+        --border: #e2e8f0; /* Slate 200 */
+        --success: #10b981; /* Emerald 500 */
+        --error: #ef4444; /* Red 500 */
+        --warning: #f59e0b; /* Amber 500 */
+        --radius: 16px;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: var(--font-family);
-      background: var(--bg);
-      color: var(--text);
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      overflow: hidden; /* Prevent body scroll, handle inside container */
-    }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-family);
+        background: var(--bg);
+        color: var(--text);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow: hidden; /* Prevent body scroll, handle inside container */
+      }
 
-    .container {
-      width: 100%;
-      max-width: 640px;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      gap: 12px;
-      overflow: scroll;
-    }
+      .container {
+        width: 100%;
+        max-width: 640px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+        gap: 12px;
+        overflow: scroll;
+      }
 
-    /* Header */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 6px;
-    }
+      /* Header */
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 6px;
+      }
 
-    h1 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.5px;
-    }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.5px;
+      }
 
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 6px 12px;
-      background: var(--surface);
-      border-radius: 999px;
-      box-shadow: var(--shadow-sm);
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-      transition: all 0.3s ease;
-    }
+      .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        background: var(--surface);
+        border-radius: 999px;
+        box-shadow: var(--shadow-sm);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+      }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-secondary);
-      transition: background 0.3s;
-    }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-secondary);
+        transition: background 0.3s;
+      }
 
-    .status-badge.connected { border-color: var(--success); color: var(--success); background: #ecfdf5; }
-    .status-badge.connected .status-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
-    
-    .status-badge.disconnected { border-color: var(--error); color: var(--error); background: #fef2f2; }
-    .status-badge.disconnected .status-dot { background: var(--error); }
-    
-    .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: #fffbeb; }
-    .status-badge.connecting .status-dot { background: var(--warning); animation: pulse 1.5s infinite; }
+      .status-badge.connected {
+        border-color: var(--success);
+        color: var(--success);
+        background: #ecfdf5;
+      }
+      .status-badge.connected .status-dot {
+        background: var(--success);
+        box-shadow: 0 0 8px var(--success);
+      }
 
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.5; }
-      100% { opacity: 1; }
-    }
+      .status-badge.disconnected {
+        border-color: var(--error);
+        color: var(--error);
+        background: #fef2f2;
+      }
+      .status-badge.disconnected .status-dot {
+        background: var(--error);
+      }
 
-    /* Main Card */
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      /* flex: 1; */
-      /* min-height: 0; */
-      position: relative;
-    }
+      .status-badge.connecting {
+        border-color: var(--warning);
+        color: var(--warning);
+        background: #fffbeb;
+      }
+      .status-badge.connecting .status-dot {
+        background: var(--warning);
+        animation: pulse 1.5s infinite;
+      }
 
-    /* Send Mode Tabs (Top) */
-    .send-mode-tabs {
-      display: flex;
-      background: var(--bg);
-      padding: 4px;
-      border-radius: 12px;
-    }
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
 
-    .tab-btn {
-      flex: 1;
-      border: none;
-      background: transparent;
-      padding: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      cursor: pointer;
-      border-radius: 8px;
-      transition: all 0.2s;
-    }
+      /* Main Card */
+      .card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        /* flex: 1; */
+        /* min-height: 0; */
+        position: relative;
+      }
 
-    .tab-btn.active {
-      background: var(--surface);
-      color: var(--primary);
-      box-shadow: var(--shadow-sm);
-    }
+      /* Send Mode Tabs (Top) */
+      .send-mode-tabs {
+        display: flex;
+        background: var(--bg);
+        padding: 4px;
+        border-radius: 12px;
+      }
 
-    /* Input & Button Container (Side-by-Side) */
-    .input-row {
-      display: flex;
-      gap: 12px;
-      height: 136px; /* Fixed height for consistency */
-    }
+      .tab-btn {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+      }
 
-    .input-wrapper {
-      flex: 1;
-      height: 100%;
-      position: relative;
-    }
+      .tab-btn.active {
+        background: var(--surface);
+        color: var(--primary);
+        box-shadow: var(--shadow-sm);
+      }
 
-    textarea {
-      width: 100%;
-      height: 100%;
-      border: 2px solid transparent;
-      border-radius: 12px;
-      background: #f8fafc;
-      padding: 16px;
-      font-size: 18px;
-      line-height: 1.6;
-      resize: none;
-      outline: none;
-      transition: all 0.2s;
-      color: var(--text);
-      font-family: inherit;
-    }
+      /* Input & Button Container (Side-by-Side) */
+      .input-row {
+        display: flex;
+        gap: 12px;
+        height: 136px; /* Fixed height for consistency */
+      }
 
-    textarea:focus {
-      background: var(--surface);
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-    }
+      .input-wrapper {
+        flex: 1;
+        height: 100%;
+        position: relative;
+      }
 
-    textarea::placeholder {
-      color: #94a3b8;
-    }
+      textarea {
+        width: 100%;
+        height: 100%;
+        border: 2px solid transparent;
+        border-radius: 12px;
+        background: #f8fafc;
+        padding: 16px;
+        font-size: 18px;
+        line-height: 1.6;
+        resize: none;
+        outline: none;
+        transition: all 0.2s;
+        color: var(--text);
+        font-family: inherit;
+      }
 
-    /* Vertical Button Stack */
-    .btn-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      width: 90px; /* Fixed width for buttons */
-    }
+      textarea:focus {
+        background: var(--surface);
+        border-color: var(--primary);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+      }
 
-    .btn {
-      border: none;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 1; /* Distribute height equally */
-      padding: 0;
-    }
+      textarea::placeholder {
+        color: #94a3b8;
+      }
 
-    .btn:active { transform: scale(0.96); }
+      /* Vertical Button Stack */
+      .btn-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 90px; /* Fixed width for buttons */
+      }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-      color: white;
-      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
-    }
-    
-    .btn-secondary {
-      background: white;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover { background: #f8fafc; }
+      .btn {
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1; /* Distribute height equally */
+        padding: 0;
+      }
 
-    /* Mode Toggle Area (Bottom) */
-    .mode-toggle-area {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
+      .btn:active {
+        transform: scale(0.96);
+      }
 
-    .toggle-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      flex: 0 0 auto;
-      justify-content: flex-end;
-    }
+      .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+      }
 
-    .toggle-switch-label {
-      position: relative;
-      display: inline-block;
-      width: 42px;
-      height: 20px;
-    }
+      .btn-secondary {
+        background: white;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .btn-secondary:hover {
+        background: #f8fafc;
+      }
 
-    .toggle-switch-label input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+      /* Mode Toggle Area (Bottom) */
+      .mode-toggle-area {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
 
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #cbd5e1;
-      transition: .4s;
-      border-radius: 34px;
-    }
+      .toggle-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 0 0 auto;
+        justify-content: flex-end;
+      }
 
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 14px;
-      width: 14px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-    }
+      .toggle-switch-label {
+        position: relative;
+        display: inline-block;
+        width: 42px;
+        height: 20px;
+      }
 
-    input:checked + .slider {
-      background-color: var(--warning); /* Use warning color for Command Mode to differentiate */
-    }
+      .toggle-switch-label input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
 
-    input:checked + .slider:before {
-      transform: translateX(22px);
-    }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: 0.4s;
+        border-radius: 34px;
+      }
 
-    .mode-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-    }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 14px;
+        width: 14px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      }
 
-    .help-icon {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #e2e8f0;
-      color: #64748b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: help;
-      position: relative;
-    }
+      input:checked + .slider {
+        background-color: var(--warning); /* Use warning color for Command Mode to differentiate */
+      }
 
-    .popover {
-      position: absolute;
-      bottom: 30px;
-      right: 0; /* Align right */
-      left: auto;
-      transform: none;
-      width: 240px;
-      padding: 12px;
-      background: #1e293b;
-      color: white;
-      font-size: 12px;
-      border-radius: 8px;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.2s;
-      z-index: 10;
-      text-align: left; /* Left align text */
-      line-height: 1.4;
-    }
+      input:checked + .slider:before {
+        transform: translateX(22px);
+      }
 
-    .help-icon:hover .popover, .help-icon:active .popover, .help-icon.active .popover {
-      opacity: 1;
-      visibility: visible;
-      bottom: 36px;
-    }
+      .mode-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+      }
 
-    .popover::after {
-      content: "";
-      position: absolute;
-      top: 100%;
-      right: 6px; /* Align arrow with icon */
-      left: auto;
-      margin-left: 0;
-      border-width: 6px;
-      border-style: solid;
-      border-color: #1e293b transparent transparent transparent;
-    }
+      .help-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: help;
+        position: relative;
+      }
 
-    /* Log Area */
-    .log-wrapper {
+      .popover {
+        position: absolute;
+        bottom: 30px;
+        right: 0; /* Align right */
+        left: auto;
+        transform: none;
+        width: 240px;
+        padding: 12px;
+        background: #1e293b;
+        color: white;
+        font-size: 12px;
+        border-radius: 8px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+        z-index: 10;
+        text-align: left; /* Left align text */
+        line-height: 1.4;
+      }
+
+      .help-icon:hover .popover,
+      .help-icon:active .popover,
+      .help-icon.active .popover {
+        opacity: 1;
+        visibility: visible;
+        bottom: 36px;
+      }
+
+      .popover::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        right: 6px; /* Align arrow with icon */
+        left: auto;
+        margin-left: 0;
+        border-width: 6px;
+        border-style: solid;
+        border-color: #1e293b transparent transparent transparent;
+      }
+
+      /* Log Area */
+      .log-wrapper {
         flex: 1; /* Fill remaining space */
         min-height: 100px;
         background: #1e293b; /* Slate 800 */
@@ -357,18 +392,20 @@
         flex-direction: column;
         flex-shrink: 0;
         box-shadow: var(--shadow);
-    }
-    
-    /* Responsive Button Icons */
-    .btn-icon {
-      display: none;
-      margin-right: 6px;
-    }
-    @media (min-width: 600px) {
-      .btn-icon { display: inline; }
-    }
-    
-    .log-header {
+      }
+
+      /* Responsive Button Icons */
+      .btn-icon {
+        display: none;
+        margin-right: 6px;
+      }
+      @media (min-width: 600px) {
+        .btn-icon {
+          display: inline;
+        }
+      }
+
+      .log-header {
         padding: 8px 12px;
         background: #0f172a; /* Slate 900 */
         color: #94a3b8;
@@ -378,596 +415,688 @@
         letter-spacing: 0.5px;
         display: flex;
         justify-content: space-between;
-    }
+      }
 
-    .log-content {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
-      font-size: 12px;
-      line-height: 1.5;
-      color: #cbd5e1;
-    }
-    
-    .log-entry { 
-        margin-bottom: 6px; 
+      .log-content {
+        flex: 1;
+        padding: 12px;
+        overflow-y: auto;
+        font-family: "JetBrains Mono", "Menlo", "Monaco", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #cbd5e1;
+      }
+
+      .log-entry {
+        margin-bottom: 6px;
         word-break: break-all;
         animation: fadeIn 0.2s ease-out;
-    }
-    .log-time { color: #64748b; margin-right: 8px; user-select: none; }
-    .log-msg { color: #e2e8f0; }
+      }
+      .log-time {
+        color: #64748b;
+        margin-right: 8px;
+        user-select: none;
+      }
+      .log-msg {
+        color: #e2e8f0;
+      }
 
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-    .log-content::-webkit-scrollbar-thumb { background: #475569; }
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      .log-content::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
 
-    .icon-btn {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      padding: 6px;
-      border-radius: 6px;
-      color: #94a3b8;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
+      .icon-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 6px;
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+      }
 
-    .icon-btn:hover {
-      color: var(--text);
-      background: rgba(0, 0, 0, 0.04);
-    }
+      .icon-btn:hover {
+        color: var(--text);
+        background: rgba(0, 0, 0, 0.04);
+      }
 
-    .icon-btn:active {
-      transform: scale(0.92);
-    }
+      .icon-btn:active {
+        transform: scale(0.92);
+      }
 
-    .icon-btn:active svg {
-      transform: rotate(180deg);
-    }
+      .icon-btn:active svg {
+        transform: rotate(180deg);
+      }
 
-    .icon-btn svg {
-      transition: transform 0.3s ease;
-    }
-    
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
+      .icon-btn svg {
+        transition: transform 0.3s ease;
+      }
 
-    .func-btn-group {
-      display: flex;
-      gap: 7px;
-      align-items: center;
-      flex: 1;
-      justify-content: flex-start;
-      margin-top: -4px;
-    }
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
 
-    .func-btn {
-      background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
-      border: none;
-      border-radius: 6px;
-      padding: 6px 12px 5px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
-      color: #475569;
-      cursor: pointer;
-      box-shadow:
-        0 1px 0 0 #fff inset,
-        0 -1px 0 0 #cbd5e1 inset,
-        0 2px 0 0 #94a3b8;
-      transition: all 0.1s ease;
-      min-width: auto;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
+      .func-btn-group {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex: 1;
+        justify-content: flex-start;
+        margin-top: -4px;
+      }
 
-    .func-btn:hover {
-      background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-      color: #334155;
-    }
+      .func-btn {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px 5px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: "JetBrains Mono", "Menlo", "Monaco", monospace;
+        color: #475569;
+        cursor: pointer;
+        box-shadow:
+          0 1px 0 0 #fff inset,
+          0 -1px 0 0 #cbd5e1 inset,
+          0 2px 0 0 #94a3b8;
+        transition: all 0.1s ease;
+        min-width: auto;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
 
-    .func-btn:active {
-      background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
-      box-shadow:
-        0 1px 0 0 #e2e8f0 inset,
-        0 -1px 0 0 #94a3b8 inset,
-        0 1px 0 0 #94a3b8;
-      transform: translateY(1px);
-    }
+      .func-btn:hover {
+        background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+        color: #334155;
+      }
 
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1>🎙️ 言传</h1>
-      <div class="header-right">
-        <div class="status-badge disconnected" id="statusBadge">
-          <div class="status-dot"></div>
-          <span id="statusText">未连接</span>
+      .func-btn:active {
+        background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+        box-shadow:
+          0 1px 0 0 #e2e8f0 inset,
+          0 -1px 0 0 #94a3b8 inset,
+          0 1px 0 0 #94a3b8;
+        transform: translateY(1px);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🎙️ 言传</h1>
+        <div class="header-right">
+          <div class="status-badge disconnected" id="statusBadge">
+            <div class="status-dot"></div>
+            <span id="statusText">检测中</span>
+          </div>
+          <button id="refreshBtn" class="icon-btn" title="健康检查/重连">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
         </div>
-        <button id="refreshBtn" class="icon-btn" title="重连/刷新">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 4v6h-6"></path>
-            <path d="M1 20v-6h6"></path>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-        </button>
-      </div>
-    </header>
+      </header>
 
-    <div class="card">
-      <!-- Send Mode Tabs -->
-      <div class="send-mode-tabs">
-        <button class="tab-btn" id="tabAuto">⚡ 自动发送</button>
-        <button class="tab-btn active" id="tabManual">📤 手动发送</button>
-      </div>
+      <div class="card">
+        <!-- Send Mode Tabs -->
+        <div class="send-mode-tabs">
+          <button class="tab-btn" id="tabAuto">⚡ 自动发送</button>
+          <button class="tab-btn active" id="tabManual">📤 手动发送</button>
+        </div>
 
-      <!-- Input and Buttons Row -->
-      <form class="input-row" id="sendForm">
-        <div class="input-wrapper">
-          <textarea id="inputBox" placeholder="点击此处，开始语音输入..." enterkeyhint="send"></textarea>
-        </div>
-        <div class="btn-stack">
-          <button id="sendBtn" class="btn btn-primary" type="submit">发送</button>
-          <button id="resendBtn" class="btn btn-secondary" type="button">重发</button>
-          <button id="clearBtn" class="btn btn-secondary" type="button">清空</button>
-          <button id="testBtn" class="btn btn-secondary" type="button" style="display: none;">测试</button>
-        </div>
-      </form>
+        <!-- Input and Buttons Row -->
+        <form class="input-row" id="sendForm">
+          <div class="input-wrapper">
+            <textarea id="inputBox" placeholder="点击此处，开始语音输入..." enterkeyhint="send"></textarea>
+          </div>
+          <div class="btn-stack">
+            <button id="sendBtn" class="btn btn-primary" type="submit">发送</button>
+            <button id="resendBtn" class="btn btn-secondary" type="button">重发</button>
+            <button id="clearBtn" class="btn btn-secondary" type="button">清空</button>
+            <button id="testBtn" class="btn btn-secondary" type="button" style="display: none">测试</button>
+          </div>
+        </form>
 
-      <!-- Mode Toggle (Text/Cmd) -->
-      <div class="mode-toggle-area">
-        <div class="func-btn-group">
-          <button class="func-btn" data-cmd="esc">ESC</button>
-          <button class="func-btn" data-cmd="tab">TAB</button>
-          <button class="func-btn" data-cmd="enter">ENTER</button>
-        </div>
-        
-        <div class="toggle-wrapper">
-          <label class="toggle-switch-label">
-            <input type="checkbox" id="modeToggle">
-            <span class="slider"></span>
-          </label>
-          <span class="mode-label" id="modeLabel">✍️ 文字模式</span>
-          <div class="help-icon">
-          ?
-          <div class="popover">
-            <b>文字模式</b>: 普通输入<br>
-            <b>命令模式</b>: 发送指令 (如 "回车", "删除")
+        <!-- Mode Toggle (Text/Cmd) -->
+        <div class="mode-toggle-area">
+          <div class="func-btn-group">
+            <button class="func-btn" data-cmd="esc">ESC</button>
+            <button class="func-btn" data-cmd="tab">TAB</button>
+            <button class="func-btn" data-cmd="enter">ENTER</button>
+          </div>
+
+          <div class="toggle-wrapper">
+            <label class="toggle-switch-label">
+              <input type="checkbox" id="modeToggle" />
+              <span class="slider"></span>
+            </label>
+            <span class="mode-label" id="modeLabel">✍️ 文字模式</span>
+            <div class="help-icon">
+              ?
+              <div class="popover">
+                <b>文字模式</b>: 普通输入<br />
+                <b>命令模式</b>: 发送指令 (如 "回车", "删除")
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div class="log-wrapper">
+        <div class="log-header">
+          <span>System Log</span>
+          <span style="cursor: pointer" onclick="document.getElementById('log').innerHTML = ''">CLEAR</span>
         </div>
-        
+        <div class="log-content" id="log"></div>
       </div>
     </div>
 
-    <div class="log-wrapper">
-        <div class="log-header">
-            <span>System Log</span>
-            <span style="cursor:pointer" onclick="document.getElementById('log').innerHTML=''">CLEAR</span>
-        </div>
-        <div class="log-content" id="log"></div>
-    </div>
-  </div>
+    <script>
+      let ws;
+      let timer = null;
+      let isComposing = false;
+      let currentMode = "text";
+      let isConnecting = false;
+      let manualClosing = false;
+      let isManualSendMode = true; // Default to Manual
 
-<script>
-let ws;
-let timer = null;
-let isComposing = false;
-let currentMode = "text";
-let isConnecting = false;
-let manualClosing = false;
-let isManualSendMode = true; // Default to Manual
+      let lastSentText = "";
+      let lastSentMsg = "";
+      let lastSentTime = 0;
+      let lastManualText = "";
+      const DUP_WINDOW_MS = 1500;
 
-let lastSentText = "";
-let lastSentMsg = "";
-let lastSentTime = 0;
-let lastManualText = "";
-const DUP_WINDOW_MS = 1500;
+      const MAX_LOG_LINES = 100;
+      let reconnectTimer = null;
+      let reconnectAttempt = 0;
+      let pendingConnectToken = 0;
+      const CONNECT_TIMEOUT_MS = 2500;
+      const RECONNECT_BASE_MS = 500;
+      const RECONNECT_MAX_MS = 5000;
+      const RECONNECT_JITTER_MS = 300;
+      const WS_PORT_CACHE_KEY = "lanvoice_ws_port";
+      const HEALTH_CHECK_INTERVAL_MS = 3000;
+      const HEALTH_CHECK_TIMEOUT_MS = 1200;
+      let healthTimer = null;
+      let lastInputFocused = false;
 
-const MAX_LOG_LINES = 100;
-let reconnectTimer = null;
-let reconnectAttempt = 0;
-let pendingConnectToken = 0;
-const CONNECT_TIMEOUT_MS = 2500;
-const RECONNECT_BASE_MS = 500;
-const RECONNECT_MAX_MS = 5000;
-const RECONNECT_JITTER_MS = 300;
-const WS_PORT_CACHE_KEY = "lanvoice_ws_port";
+      function log(msg) {
+        const el = document.getElementById("log");
+        const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-function log(msg){
-  const el = document.getElementById("log");
-  const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
-  
-  const div = document.createElement('div');
-  div.className = 'log-entry';
-  div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg">${msg}</span>`;
-  
-  el.insertBefore(div, el.firstChild);
-  
-  if(el.children.length > MAX_LOG_LINES) {
-    el.removeChild(el.lastChild);
-  }
-}
+        const div = document.createElement("div");
+        div.className = "log-entry";
+        div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg">${msg}</span>`;
 
-function setStatus(msg, type = 'normal'){
-  const badge = document.getElementById("statusBadge");
-  const text = document.getElementById("statusText");
-  
-  text.textContent = msg;
-  badge.className = 'status-badge'; 
-  
-  if(msg.includes("已连接")) {
-      badge.classList.add('connected');
-  } else if (msg.includes("断开") || msg.includes("错误")) {
-      badge.classList.add('disconnected');
-  } else if (msg.includes("连接") || msg.includes("中")) {
-      badge.classList.add('connecting');
-  }
-}
+        el.insertBefore(div, el.firstChild);
 
-// Send Mode Logic
-function setSendMode(manual){
-  isManualSendMode = manual;
-  document.getElementById("tabAuto").classList.toggle("active", !manual);
-  document.getElementById("tabManual").classList.toggle("active", manual);
-  log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
-}
-
-document.getElementById("tabAuto").onclick = () => setSendMode(false);
-document.getElementById("tabManual").onclick = () => setSendMode(true);
-
-// Text/Cmd Mode Logic
-function toggleInputMode(){
-  const isCmd = document.getElementById("modeToggle").checked;
-  currentMode = isCmd ? "cmd" : "text";
-  document.getElementById("modeLabel").textContent = isCmd ? "⌨️ 命令模式" : "✍️ 文字模式";
-  log("✅ 切换模式：" + (isCmd ? "命令" : "文字"));
-}
-
-document.getElementById("modeToggle").onchange = toggleInputMode;
-
-// Popover click handling for mobile
-const helpIcon = document.querySelector('.help-icon');
-helpIcon.addEventListener('click', (e) => {
-  e.stopPropagation();
-  helpIcon.classList.toggle('active');
-});
-document.addEventListener('click', () => {
-  helpIcon.classList.remove('active');
-});
-
-function getWSFromQuery(){
-  const url = new URL(location.href);
-  return url.searchParams.get("ws");
-}
-
-function normalizePort(port){
-  if(port === undefined || port === null) return null;
-  const value = String(port).trim();
-  return value ? value : null;
-}
-
-async function fetchWSPortWithTimeout(timeoutMs){
-  const controller = new AbortController();
-  const timerId = setTimeout(() => controller.abort(), timeoutMs);
-  try{
-    const res = await fetch("/config", { signal: controller.signal, cache: "no-store" });
-    const cfg = await res.json();
-    return normalizePort(cfg && cfg.ws_port);
-  }catch(e){
-    return null;
-  }finally{
-    clearTimeout(timerId);
-  }
-}
-
-async function resolveWSPortCandidates(){
-  const candidates = [];
-  const wsFromQuery = normalizePort(getWSFromQuery());
-  if(wsFromQuery) candidates.push(wsFromQuery);
-  const cached = normalizePort(localStorage.getItem(WS_PORT_CACHE_KEY));
-  if(cached) candidates.push(cached);
-  const configPort = await fetchWSPortWithTimeout(800);
-  if(configPort) candidates.push(configPort);
-  candidates.push("8765");
-  return [...new Set(candidates)];
-}
-
-function scheduleReconnect(){
-  if(manualClosing) return;
-  if(reconnectTimer) return;
-  const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * Math.pow(2, reconnectAttempt));
-  const jitter = Math.floor(Math.random() * RECONNECT_JITTER_MS);
-  const wait = delay + jitter;
-  reconnectAttempt += 1;
-  setStatus("连接中...");
-  log("🔄 " + Math.round(wait / 1000) + "s 后重连...");
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connectWS();
-  }, wait);
-}
-
-function attachWsRuntimeHandlers(){
-  if(!ws) return;
-  ws.onclose = () => {
-    isConnecting = false;
-    setStatus("已断开");
-    if(manualClosing){
-      manualClosing = false;
-      log("🔌 已手动断开");
-      return;
-    }
-    log("❌ 连接断开");
-    scheduleReconnect();
-  };
-
-  ws.onerror = () => {
-    isConnecting = false;
-    setStatus("连接错误");
-    log("❌ WebSocket 错误");
-    if(!manualClosing) scheduleReconnect();
-  };
-
-  ws.onmessage = (event) => {
-    try{
-      const data = JSON.parse(event.data);
-      if(data && data.type === "cmd_result"){
-        log("✅ 命令结果：" + data.message);
+        if (el.children.length > MAX_LOG_LINES) {
+          el.removeChild(el.lastChild);
+        }
       }
-    }catch(e){
-    }
-  };
-}
 
-function tryConnectPort(port, connectId){
-  return new Promise((resolve) => {
-    const wsUrl = `ws://${location.hostname}:${port}`;
-    setStatus("连接中...");
-    log("⏳ 正在连接到：" + wsUrl);
-    let finished = false;
-    let timeoutId = setTimeout(() => {
-      if(finished) return;
-      finished = true;
-      try{
-        if(ws && ws.readyState === 0) ws.close();
-      }catch(e){}
-      resolve(false);
-    }, CONNECT_TIMEOUT_MS);
+      function setStatus(msg, type = "normal") {
+        const badge = document.getElementById("statusBadge");
+        const text = document.getElementById("statusText");
 
-    try{
-      ws = new WebSocket(wsUrl);
-    }catch(e){
-      clearTimeout(timeoutId);
-      resolve(false);
-      return;
-    }
+        text.textContent = msg;
+        badge.className = "status-badge";
 
-    const cleanup = () => {
-      if(timeoutId){
-        clearTimeout(timeoutId);
-        timeoutId = null;
+        if (type === "online") {
+          badge.classList.add("connected");
+        } else if (type === "offline") {
+          badge.classList.add("disconnected");
+        } else if (type === "checking") {
+          badge.classList.add("connecting");
+        } else if (msg.includes("已连接")) {
+          badge.classList.add("connected");
+        } else if (msg.includes("断开") || msg.includes("错误")) {
+          badge.classList.add("disconnected");
+        } else if (msg.includes("连接") || msg.includes("中")) {
+          badge.classList.add("connecting");
+        }
       }
-    };
 
-    ws.onopen = () => {
-      if(finished) return;
-      finished = true;
-      cleanup();
-      if(connectId !== pendingConnectToken){
-        try{ ws.close(); }catch(e){}
-        resolve(false);
-        return;
+      // Send Mode Logic
+      function setSendMode(manual) {
+        isManualSendMode = manual;
+        document.getElementById("tabAuto").classList.toggle("active", !manual);
+        document.getElementById("tabManual").classList.toggle("active", manual);
+        log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
       }
-      isConnecting = false;
-      manualClosing = false;
-      reconnectAttempt = 0;
-      localStorage.setItem(WS_PORT_CACHE_KEY, String(port));
-      setStatus("已连接");
-      log("✅ 已连接到服务器");
-      attachWsRuntimeHandlers();
-      resolve(true);
-    };
 
-    ws.onclose = () => {
-      if(finished) return;
-      finished = true;
-      cleanup();
-      resolve(false);
-    };
+      document.getElementById("tabAuto").onclick = () => setSendMode(false);
+      document.getElementById("tabManual").onclick = () => setSendMode(true);
 
-    ws.onerror = () => {
-      if(finished) return;
-      finished = true;
-      cleanup();
-      resolve(false);
-    };
-  });
-}
+      // Text/Cmd Mode Logic
+      function toggleInputMode() {
+        const isCmd = document.getElementById("modeToggle").checked;
+        currentMode = isCmd ? "cmd" : "text";
+        document.getElementById("modeLabel").textContent = isCmd ? "⌨️ 命令模式" : "✍️ 文字模式";
+        log("✅ 切换模式：" + (isCmd ? "命令" : "文字"));
+      }
 
-async function connectWS(){
-  if(isConnecting) return;
-  isConnecting = true;
-  const connectId = ++pendingConnectToken;
-  if(reconnectTimer){
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  const candidates = await resolveWSPortCandidates();
-  for(const port of candidates){
-    if(connectId !== pendingConnectToken) return;
-    const ok = await tryConnectPort(port, connectId);
-    if(ok) return;
-  }
-  isConnecting = false;
-  scheduleReconnect();
-}
-connectWS();
+      document.getElementById("modeToggle").onchange = toggleInputMode;
 
-window.onload = () => {
-  setTimeout(() => document.getElementById("inputBox").focus(), 200);
-};
+      // Popover click handling for mobile
+      const helpIcon = document.querySelector(".help-icon");
+      helpIcon.addEventListener("click", (e) => {
+        e.stopPropagation();
+        helpIcon.classList.toggle("active");
+      });
+      document.addEventListener("click", () => {
+        helpIcon.classList.remove("active");
+      });
 
-window.addEventListener("online", () => {
-  if(!ws || ws.readyState !== 1) connectWS();
-});
+      function getWSFromQuery() {
+        const url = new URL(location.href);
+        return url.searchParams.get("ws");
+      }
 
-document.addEventListener("visibilitychange", () => {
-  if(!document.hidden && (!ws || ws.readyState !== 1)) connectWS();
-});
+      function normalizePort(port) {
+        if (port === undefined || port === null) return null;
+        const value = String(port).trim();
+        return value ? value : null;
+      }
 
-function sendText(text, force = false){
-  text = (text || "").trim();
-  if(!text) return;
+      async function fetchWSPortWithTimeout(timeoutMs) {
+        const controller = new AbortController();
+        const timerId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch("/config", { signal: controller.signal, cache: "no-store" });
+          const cfg = await res.json();
+          return normalizePort(cfg && cfg.ws_port);
+        } catch (e) {
+          return null;
+        } finally {
+          clearTimeout(timerId);
+        }
+      }
 
-  const now = Date.now();
-  const dedupKey = currentMode + "::" + text;
-  if(!force && dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
-    log("⏭️ 忽略重复发送");
-    return;
-  }
-  lastSentMsg = dedupKey;
-  lastSentTime = now;
+      async function resolveWSPortCandidates() {
+        const candidates = [];
+        const wsFromQuery = normalizePort(getWSFromQuery());
+        if (wsFromQuery) candidates.push(wsFromQuery);
+        const cached = normalizePort(localStorage.getItem(WS_PORT_CACHE_KEY));
+        if (cached) candidates.push(cached);
+        const configPort = await fetchWSPortWithTimeout(800);
+        if (configPort) candidates.push(configPort);
+        candidates.push("8765");
+        return [...new Set(candidates)];
+      }
 
-  if(ws && ws.readyState === 1){
-    const payload = { type: currentMode, string: text };
-    ws.send(JSON.stringify(payload));
-    log("📤 " + (currentMode === "text" ? "发送" : "命令") + "：" + text);
-  } else {
-    log("⚠️ 未连接，发送失败");
-  }
-}
+      async function fetchHealthWithTimeout(timeoutMs) {
+        const controller = new AbortController();
+        const timerId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch("/health", { signal: controller.signal, cache: "no-store" });
+          if (!res.ok) return null;
+          return await res.json();
+        } catch (e) {
+          return null;
+        } finally {
+          clearTimeout(timerId);
+        }
+      }
 
-function handleManualSend(){
-  const box = document.getElementById("inputBox");
-  const text = box.value;
-  if(text){
-    lastManualText = text;
-    sendText(text);
-    box.value = "";
-    lastSentText = "";
-    box.focus();
-  } else {
-    log("⚠️ 内容为空");
-  }
-}
+      async function checkHealth(announce = false) {
+        setStatus("检测中", "checking");
+        const data = await fetchHealthWithTimeout(HEALTH_CHECK_TIMEOUT_MS);
+        if (data && data.ok) {
+          setStatus("HTTP 在线", "online");
+          if (announce) log("✅ 健康检查通过");
+        } else {
+          setStatus("HTTP 离线", "offline");
+          if (announce) log("❌ 健康检查失败");
+        }
+      }
 
-document.getElementById("sendForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  handleManualSend();
-});
+      function startHealthPolling() {
+        if (healthTimer) return;
+        checkHealth();
+        healthTimer = setInterval(checkHealth, HEALTH_CHECK_INTERVAL_MS);
+      }
 
-document.getElementById("resendBtn").onclick = () => {
-  if(!lastManualText){
-    log("⚠️ 无历史内容");
-    return;
-  }
-  log("🔄 重发...");
-  sendText(lastManualText, true);
-};
+      function scheduleReconnect() {
+        if (manualClosing) return;
+        if (reconnectTimer) return;
+        const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * Math.pow(2, reconnectAttempt));
+        const jitter = Math.floor(Math.random() * RECONNECT_JITTER_MS);
+        const wait = delay + jitter;
+        reconnectAttempt += 1;
+        log("🔄 " + Math.round(wait / 1000) + "s 后重连...");
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connectWS();
+        }, wait);
+      }
 
-document.getElementById("refreshBtn").onclick = async () => {
-  log("🔌 尝试重连...");
-  try{
-    if(ws && (ws.readyState === 0 || ws.readyState === 1)){
-      manualClosing = true;
-      ws.close();
-    }
-  }catch(e){
-    // ignore
-  }
-  reconnectAttempt = 0;
-  connectWS();
-};
+      function attachWsRuntimeHandlers() {
+        if (!ws) return;
+        ws.onclose = () => {
+          isConnecting = false;
+          if (manualClosing) {
+            manualClosing = false;
+            log("🔌 已手动断开");
+            return;
+          }
+          log("❌ 连接断开");
+          scheduleReconnect();
+        };
 
-document.querySelectorAll('.func-btn').forEach(btn => {
-  btn.onclick = (e) => {
-    e.preventDefault();
-    const cmd = btn.dataset.cmd;
-    if(!cmd) return;
-    
-    if(ws && ws.readyState === 1){
-      const map = {
-        enter: "回车",
-        tab: "tab",
-        esc: "esc"
+        ws.onerror = () => {
+          isConnecting = false;
+          log("❌ WebSocket 错误");
+          if (!manualClosing) scheduleReconnect();
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && data.type === "cmd_result") {
+              log("✅ 命令结果：" + data.message);
+            }
+          } catch (e) {}
+        };
+      }
+
+      function tryConnectPort(port, connectId) {
+        return new Promise((resolve) => {
+          const wsUrl = `ws://${location.hostname}:${port}`;
+          log("⏳ 正在连接到：" + wsUrl);
+          let finished = false;
+          let timeoutId = setTimeout(() => {
+            if (finished) return;
+            finished = true;
+            try {
+              if (ws && ws.readyState === 0) ws.close();
+            } catch (e) {}
+            resolve(false);
+          }, CONNECT_TIMEOUT_MS);
+
+          try {
+            ws = new WebSocket(wsUrl);
+          } catch (e) {
+            clearTimeout(timeoutId);
+            resolve(false);
+            return;
+          }
+
+          const cleanup = () => {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          };
+
+          ws.onopen = () => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            if (connectId !== pendingConnectToken) {
+              try {
+                ws.close();
+              } catch (e) {}
+              resolve(false);
+              return;
+            }
+            isConnecting = false;
+            manualClosing = false;
+            reconnectAttempt = 0;
+            localStorage.setItem(WS_PORT_CACHE_KEY, String(port));
+            log("✅ 已连接到服务器");
+            attachWsRuntimeHandlers();
+            resolve(true);
+          };
+
+          ws.onclose = () => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            resolve(false);
+          };
+
+          ws.onerror = () => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            resolve(false);
+          };
+        });
+      }
+
+      async function connectWS() {
+        if (isConnecting) return;
+        isConnecting = true;
+        const connectId = ++pendingConnectToken;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        const candidates = await resolveWSPortCandidates();
+        for (const port of candidates) {
+          if (connectId !== pendingConnectToken) return;
+          const ok = await tryConnectPort(port, connectId);
+          if (ok) return;
+        }
+        isConnecting = false;
+        scheduleReconnect();
+      }
+      connectWS();
+      startHealthPolling();
+
+      window.onload = () => {
+        setTimeout(() => document.getElementById("inputBox").focus(), 200);
       };
-      const text = map[cmd] || cmd;
-      const payload = { type: "text", string: text };
-      ws.send(JSON.stringify(payload));
-      log("📤 快捷指令：" + cmd.toUpperCase());
-    } else {
-      log("⚠️ 未连接，发送失败");
-    }
-  };
-});
 
-document.getElementById("clearBtn").onclick = () => {
-  const box = document.getElementById("inputBox");
-  box.value = "";
-  lastSentText = "";
-  document.getElementById("log").innerHTML = "";
-  box.focus();
-};
+      window.addEventListener("online", () => {
+        if (!ws || ws.readyState !== 1) connectWS();
+      });
 
-document.getElementById("testBtn").onclick = () => {
-  log("🧪 测试注入指令");
-  sendText("__TEST_INJECT__");
-};
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && (!ws || ws.readyState !== 1)) connectWS();
+      });
 
-const box = document.getElementById("inputBox");
-box.addEventListener("compositionstart", () => isComposing = true);
-box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
-box.addEventListener("keydown", (e) => {
-  if(e.key === "Enter" && !e.shiftKey && !isComposing){
-    e.preventDefault();
-    const form = document.getElementById("sendForm");
-    if(form.requestSubmit){
-      form.requestSubmit();
-    } else {
-      form.dispatchEvent(new Event("submit", { cancelable: true }));
-    }
-  }
-});
+      async function sendPayload(type, text, force = false, useHttp = false) {
+        text = (text || "").trim();
+        if (!text) return;
 
-box.addEventListener("input", () => {
-  clearTimeout(timer);
-  if(isComposing) return;
-  timer = setTimeout(flushDelta, 500);
-});
+        const now = Date.now();
+        const dedupKey = type + "::" + text;
+        if (!force && dedupKey === lastSentMsg && now - lastSentTime < DUP_WINDOW_MS) {
+          log("⏭️ 忽略重复发送");
+          return;
+        }
+        lastSentMsg = dedupKey;
+        lastSentTime = now;
 
-function flushDelta(){
-  // Check global variable instead of checkbox
-  if(isManualSendMode) return;
+        const payload = { type, string: text };
+        if (useHttp) {
+          try {
+            const res = await fetch("/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+              cache: "no-store",
+            });
+            if (!res.ok) {
+              log("⚠️ 发送失败");
+              return;
+            }
+            const data = await res.json().catch(() => null);
+            if (data && data.type === "cmd_result") {
+              log("✅ 命令结果：" + data.message);
+            } else {
+              log("📤 " + (type === "text" ? "发送" : "命令") + "：" + text);
+            }
+          } catch (e) {
+            log("⚠️ 发送失败");
+          }
+          return;
+        }
 
-  const current = box.value;
-  if(!current.trim()) return;
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify(payload));
+          log("📤 " + (type === "text" ? "发送" : "命令") + "：" + text);
+        } else {
+          log("⚠️ 未连接，发送失败");
+        }
+      }
 
-  if(current.startsWith(lastSentText)){
-    const delta = current.slice(lastSentText.length).trim();
-    if(delta){
-      sendText(delta);
-      lastSentText = current;
-    }
-  }else{
-    log("✏️ 检测到历史编辑，请手动发送");
-  }
-}
-</script>
-</body>
+      function sendText(text, force = false, useHttp = false) {
+        return sendPayload(currentMode, text, force, useHttp);
+      }
+
+      function handleManualSend() {
+        const box = document.getElementById("inputBox");
+        const text = box.value;
+        if (text) {
+          lastManualText = text;
+          sendText(text, false, isManualSendMode);
+          box.value = "";
+          lastSentText = "";
+          box.focus();
+        } else {
+          log("⚠️ 内容为空");
+        }
+      }
+
+      document.getElementById("sendForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        handleManualSend();
+      });
+
+      document.getElementById("resendBtn").onclick = () => {
+        if (!lastManualText) {
+          log("⚠️ 无历史内容");
+          return;
+        }
+        log("🔄 重发...");
+        sendText(lastManualText, true, isManualSendMode);
+      };
+
+      document.getElementById("refreshBtn").onclick = async () => {
+        log("🔌 健康检查/重连...");
+        try {
+          if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
+            manualClosing = true;
+            ws.close();
+          }
+        } catch (e) {
+          // ignore
+        }
+        reconnectAttempt = 0;
+        connectWS();
+        checkHealth(true);
+      };
+
+      const inputBox = document.getElementById("inputBox");
+      document.querySelectorAll(".func-btn").forEach((btn) => {
+        btn.onmousedown = () => {
+          lastInputFocused = document.activeElement === inputBox;
+        };
+        btn.onclick = (e) => {
+          e.preventDefault();
+          const cmd = btn.dataset.cmd;
+          if (!cmd) return;
+
+          const map = {
+            enter: "回车",
+            tab: "tab",
+            esc: "esc",
+          };
+          const text = map[cmd] || cmd;
+          sendPayload("text", text, true, isManualSendMode);
+          if (lastInputFocused) {
+            inputBox.focus();
+            lastInputFocused = false;
+          }
+        };
+      });
+
+      document.getElementById("clearBtn").onclick = () => {
+        const box = document.getElementById("inputBox");
+        box.value = "";
+        lastSentText = "";
+        document.getElementById("log").innerHTML = "";
+        box.focus();
+      };
+
+      document.getElementById("testBtn").onclick = () => {
+        log("🧪 测试注入指令");
+        sendText("__TEST_INJECT__");
+      };
+
+      inputBox.addEventListener("compositionstart", () => (isComposing = true));
+      inputBox.addEventListener("compositionend", () => {
+        isComposing = false;
+        flushDelta();
+      });
+      inputBox.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !isComposing) {
+          e.preventDefault();
+          const form = document.getElementById("sendForm");
+          if (form.requestSubmit) {
+            form.requestSubmit();
+          } else {
+            form.dispatchEvent(new Event("submit", { cancelable: true }));
+          }
+        }
+      });
+
+      inputBox.addEventListener("input", () => {
+        clearTimeout(timer);
+        if (isComposing) return;
+        timer = setTimeout(flushDelta, 500);
+      });
+
+      function flushDelta() {
+        // Check global variable instead of checkbox
+        if (isManualSendMode) return;
+
+        const current = inputBox.value;
+        if (!current.trim()) return;
+
+        if (current.startsWith(lastSentText)) {
+          const delta = current.slice(lastSentText.length).trim();
+          if (delta) {
+            sendText(delta);
+            lastSentText = current;
+          }
+        } else {
+          log("✏️ 检测到历史编辑，请手动发送");
+        }
+      }
+    </script>
+  </body>
 </html>

@@ -21,7 +21,7 @@ import pystray
 import qrcode
 import websockets
 from PIL import Image
-from flask import Flask, send_file, jsonify
+from flask import Flask, send_file, jsonify, request
 from pystray import MenuItem as item
 from werkzeug.serving import make_server
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
@@ -951,6 +951,38 @@ def index():
 @app.route("/config")
 def config():
     return jsonify({"ws_port": WS_PORT, "http_port": HTTP_PORT, "url": QR_PAYLOAD_URL})
+
+
+@app.route("/health")
+def health():
+    return jsonify({"ok": True, "ws_port": WS_PORT, "http_port": HTTP_PORT})
+
+
+@app.route("/send", methods=["POST"])
+def send_http():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
+    msg_type = (data.get("type") or request.form.get("type") or "text").strip()
+    content = data.get("string")
+    if content is None:
+        content = request.form.get("string")
+    text = str(content or "").strip()
+    if not text:
+        return jsonify({"ok": False, "message": "empty"}), 400
+
+    if msg_type == "cmd":
+        result = execute_command(text)
+        output = result.output if isinstance(result.output, dict) else {"ok": False, "message": result.display_text}
+        return jsonify({
+            "type": "cmd_result",
+            "string": text,
+            "ok": bool(output.get("ok")),
+            "message": output.get("message"),
+        })
+
+    handle_text(text)
+    return jsonify({"ok": True})
 
 
 def run_http():
