@@ -911,7 +911,7 @@
             reconnectAttempt = 0;
             localStorage.setItem(WS_PORT_CACHE_KEY, String(port));
             log("✅ 已连接到服务器");
-            if (!isManualSendMode) setStatus("在线", "online");
+            if (!isManualSendMode) setStatus("已连接", "online");
             attachWsRuntimeHandlers();
             resolve(true);
           };
