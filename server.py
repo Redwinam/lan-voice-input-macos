@@ -8,25 +8,20 @@ import socket
 import subprocess
 import sys
 import threading
-import time
 import tempfile
-from collections import deque
-from dataclasses import dataclass
 from typing import List, Tuple, Optional
-import shlex
 import queue
 
-import pyautogui
 import pystray
 import qrcode
-import websockets
 from PIL import Image
-from flask import Flask, send_file, jsonify, request
 from pystray import MenuItem as item
 from werkzeug.serving import make_server
-from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
 import platform
+
+from lanvi_input import InputService
+from lanvi_transport import ClientCounter, create_http_app, make_ws_handler, ws_thread_main
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
@@ -40,11 +35,6 @@ if IS_WINDOWS:
         WINOTIFY_AVAILABLE = False
 else:
     WINOTIFY_AVAILABLE = False
-
-if IS_WINDOWS:
-    import ctypes
-    from ctypes import wintypes
-
 
 def macos_has_accessibility_permission() -> bool:
     if not IS_MACOS:
@@ -82,16 +72,6 @@ DEFAULT_HTTP_PORT = 8080
 DEFAULT_WS_PORT = 8765
 MAX_PORT_TRY = 50
 
-# ===================== 行为配置 =====================
-FORCE_CLICK_BEFORE_TYPE = True
-FOCUS_SETTLE_DELAY = 0.06
-
-CLEAR_BACKSPACE_MAX = 200
-TEST_INJECT_TEXT = "[SendInput Test] 123 ABC 中文 测试"
-
-SERVER_DEDUP_WINDOW_SEC = 1.2
-HISTORY_MAX_LEN = 300
-
 # WebSocket 心跳（让断线更快被识别）
 WS_PING_INTERVAL = 20
 WS_PING_TIMEOUT = 10
@@ -103,9 +83,6 @@ QR_URL: Optional[str] = None
 QR_PAYLOAD_URL: Optional[str] = None
 
 tray_icon = None
-
-CLIENT_COUNT = 0
-CLIENT_LOCK = threading.Lock()
 
 # ===================== 服务生命周期（启动/停止）=====================
 SERVICE_LOCK = threading.Lock()
@@ -305,6 +282,22 @@ def _macos_notify_worker():
             subprocess.run(["osascript", "-e", script], timeout=2)
         except Exception:
             pass
+
+
+input_service = InputService(notify, lambda: COMMANDS)
+client_counter = ClientCounter()
+
+
+def get_ports():
+    return HTTP_PORT, WS_PORT
+
+
+def get_qr_url():
+    return QR_PAYLOAD_URL
+
+
+app = create_http_app(resource_path, get_ports, get_qr_url, input_service)
+ws_handler = make_ws_handler(input_service, notify, get_ports, client_counter)
 
 
 # ===================== 自动选择可用端口 =====================
@@ -534,456 +527,6 @@ def open_qr_image(url):
     except Exception as e:
         print("无法打开二维码图片：", e)
 
-# ===================== Input Control (Cross Platform) =====================
-
-# --- Windows Implementation ---
-if IS_WINDOWS:
-    if not hasattr(wintypes, "ULONG_PTR"):
-        wintypes.ULONG_PTR = ctypes.c_size_t
-
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-
-    INPUT_KEYBOARD = 1
-    KEYEVENTF_KEYUP = 0x0002
-    KEYEVENTF_UNICODE = 0x0004
-
-    VK_BACK = 0x08
-    VK_TAB = 0x09
-    VK_RETURN = 0x0D
-    VK_ESCAPE = 0x1B
-
-    class MOUSEINPUT(ctypes.Structure):
-        _fields_ = [
-            ("dx", wintypes.LONG),
-            ("dy", wintypes.LONG),
-            ("mouseData", wintypes.DWORD),
-            ("dwFlags", wintypes.DWORD),
-            ("time", wintypes.DWORD),
-            ("dwExtraInfo", wintypes.ULONG_PTR),
-        ]
-
-    class KEYBDINPUT(ctypes.Structure):
-        _fields_ = [
-            ("wVk", wintypes.WORD),
-            ("wScan", wintypes.WORD),
-            ("dwFlags", wintypes.DWORD),
-            ("time", wintypes.DWORD),
-            ("dwExtraInfo", wintypes.ULONG_PTR),
-        ]
-
-    class HARDWAREINPUT(ctypes.Structure):
-        _fields_ = [
-            ("uMsg", wintypes.DWORD),
-            ("wParamL", wintypes.WORD),
-            ("wParamH", wintypes.WORD),
-        ]
-
-    class _INPUTunion(ctypes.Union):
-        _fields_ = [
-            ("mi", MOUSEINPUT),
-            ("ki", KEYBDINPUT),
-            ("hi", HARDWAREINPUT),
-        ]
-
-    class INPUT(ctypes.Structure):
-        _anonymous_ = ("union",)
-        _fields_ = [("type", wintypes.DWORD), ("union", _INPUTunion)]
-
-    def _send_input(inputs):
-        n = len(inputs)
-        arr = (INPUT * n)(*inputs)
-        cb = ctypes.sizeof(INPUT)
-        sent = user32.SendInput(n, arr, cb)
-        if sent != n:
-            err = ctypes.get_last_error()
-            raise ctypes.WinError(err)
-
-    def send_unicode_text(text: str):
-        inputs = []
-        for ch in text:
-            code = ord(ch)
-            inputs.append(INPUT(
-                type=INPUT_KEYBOARD,
-                ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE, time=0, dwExtraInfo=0)
-            ))
-            inputs.append(INPUT(
-                type=INPUT_KEYBOARD,
-                ki=KEYBDINPUT(wVk=0, wScan=code, dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)
-            ))
-        _send_input(inputs)
-
-    def press_vk(vk_code: int, times: int = 1):
-        for _ in range(times):
-            down = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
-            up = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk_code, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
-            _send_input([down, up])
-
-    def backspace(n: int):
-        if n > 0:
-            press_vk(VK_BACK, times=n)
-
-    def press_enter():
-        press_vk(VK_RETURN, times=1)
-
-    def press_tab():
-        press_vk(VK_TAB, times=1)
-
-    def press_esc():
-        press_vk(VK_ESCAPE, times=1)
-
-# --- macOS / Other Implementation ---
-else:
-    # 依赖 pyautogui / pyperclip
-    # 确保已安装: pip install pyperclip
-    import pyperclip
-
-    def send_unicode_text(text: str):
-        """
-        macOS 下模拟键盘输入 Unicode 最稳妥的方式：
-        复制到剪贴板 -> 模拟 Cmd+V
-        """
-        if not text:
-            return
-        
-        try:
-            pyperclip.copy(text)
-            # macOS 使用 command+v
-            pyautogui.hotkey('command', 'v')
-        except Exception as e:
-            print(f"Error sending text: {e}")
-
-    def backspace(n: int):
-        if n > 0:
-            pyautogui.press('backspace', presses=n)
-
-    def press_enter():
-        pyautogui.press('enter')
-
-    def press_tab():
-        pyautogui.press('tab')
-
-    def press_esc():
-        pyautogui.press('esc')
-
-
-# ===================== 指令系统 =====================
-@dataclass
-class CommandResult:
-    handled: bool
-    display_text: str = ""
-    output: object = ""
-
-
-class CommandProcessor:
-    def __init__(self):
-        self.paused = False
-        self.history = deque(maxlen=HISTORY_MAX_LEN)
-        self.alias = {"豆号": "逗号", "都好": "逗号", "据号": "句号", "聚好": "句号", "句点": "句号"}
-        self.punc_map = {"逗号": "，", "句号": "。", "问号": "？", "感叹号": "！", "冒号": "：", "分号": "；", "顿号": "、"}
-
-    def normalize(self, text: str) -> str:
-        text = (text or "").strip()
-        for k, v in self.alias.items():
-            text = text.replace(k, v)
-        return text
-
-    def parse_delete_n(self, text: str):
-        m = re.search(r"(删除|退格)\s*(\d+)\s*(个字|次)?", text)
-        return int(m.group(2)) if m else None
-
-    def handle(self, raw_text: str) -> CommandResult:
-        text = self.normalize(raw_text)
-
-        if text in ["暂停输入", "暂停", "停止输入"]:
-            self.paused = True
-            return CommandResult(True, "⏸ 已暂停输入", "")
-
-        if text in ["继续输入", "继续", "恢复输入"]:
-            self.paused = False
-            return CommandResult(True, "▶️ 已恢复输入", "")
-
-        if self.paused:
-            return CommandResult(True, f"⏸(暂停中) {raw_text}", "")
-
-        if text in ["换行", "回车", "下一行", "enter", "ENTER", "回车键", "enter键", "Enter"]:
-            return CommandResult(True, "↩️ 换行", ("__ENTER__", 1))
-
-        if text in ["tab", "TAB", "制表符", "制表", "tab键", "TAB键", "Tab"]:
-            return CommandResult(True, "↹ TAB", ("__TAB__", 1))
-
-        if text in ["esc", "ESC", "escape", "ESC键", "esc键", "Escape"]:
-            return CommandResult(True, "⎋ ESC", ("__ESC__", 1))
-
-        if text in self.punc_map:
-            return CommandResult(True, f"⌨️ {text}", self.punc_map[text])
-
-        if text in ["删除上一句", "撤回上一句", "撤销上一句", "删掉上一句"]:
-            if not self.history:
-                return CommandResult(True, "⚠️ 没有可删除的内容", "")
-            last = self.history.pop()
-            return CommandResult(True, f"⌫ 删除上一句：{last}", ("__BACKSPACE__", len(last)))
-
-        n = self.parse_delete_n(text)
-        if n is not None:
-            return CommandResult(True, f"⌫ 删除 {n} 个字", ("__BACKSPACE__", n))
-
-        if text in ["清空", "清除全部", "全部删除"]:
-            return CommandResult(True, "🧹 清空", ("__BACKSPACE__", CLEAR_BACKSPACE_MAX))
-
-        return CommandResult(False, raw_text, raw_text)
-
-    def record_output(self, out: str):
-        if out and out != "\n":
-            out = str(out)
-            if len(out) > 4000:
-                out = out[:4000]
-            self.history.append(out)
-
-
-processor = CommandProcessor()
-
-
-def execute_output(out):
-    if out == "":
-        return
-    if isinstance(out, tuple):
-        if out[0] == "__BACKSPACE__":
-            backspace(int(out[1]))
-            return
-        if out[0] == "__ENTER__":
-            press_enter()
-            return
-        if out[0] == "__TAB__":
-            press_tab()
-            return
-        if out[0] == "__ESC__":
-            press_esc()
-            return
-    if isinstance(out, str):
-        send_unicode_text(out)
-
-
-def focus_target():
-    if not FORCE_CLICK_BEFORE_TYPE:
-        return
-    try:
-        x, y = pyautogui.position()
-        pyautogui.click(x, y)
-        time.sleep(FOCUS_SETTLE_DELAY)
-    except Exception:
-        pass
-
-
-_last_msg = ""
-_last_time = 0.0
-
-
-def server_dedup(text: str) -> bool:
-    global _last_msg, _last_time
-    now = time.time()
-    if text == _last_msg and (now - _last_time) < SERVER_DEDUP_WINDOW_SEC:
-        return True
-    _last_msg = text
-    _last_time = now
-    return False
-
-
-def handle_text(text: str):
-    text = (text or "").strip()
-    if not text:
-        return
-
-    if server_dedup(text):
-        print("⏭️ 服务器去重：", text)
-        return
-
-    if text == "__TEST_INJECT__":
-        notify("测试注入", "请将鼠标放在记事本输入区，正在注入测试文本…")
-        focus_target()
-        try:
-            send_unicode_text(TEST_INJECT_TEXT)
-            press_enter()
-            send_unicode_text("✅ 如果你看到这行文字，说明 SendInput 注入成功！")
-            press_enter()
-            notify("测试注入成功", "请查看记事本是否出现两行测试文本。")
-        except Exception as e:
-            notify("测试注入失败", str(e))
-        return
-
-    result = processor.handle(text)
-    if result.output == "":
-        notify("指令执行", result.display_text)
-        return
-
-    focus_target()
-    execute_output(result.output)
-
-    if not result.handled and isinstance(result.output, str):
-        processor.record_output(result.output)
-
-
-def _build_command_args(command, args) -> List[str]:
-    if isinstance(command, str) and command.strip():
-        parts = shlex.split(command, posix=False)
-    elif isinstance(command, list):
-        parts = [str(x) for x in command if str(x).strip()]
-    else:
-        parts = []
-
-    if isinstance(args, list):
-        parts.extend([str(x) for x in args if str(x).strip()])
-    return parts
-
-
-def _match_command(text: str) -> Optional[dict]:
-    text = (text or "").strip()
-    if not text:
-        return None
-    for cmd in COMMANDS:
-        match_string = (cmd.get("match-string") or "").strip()
-        if match_string and match_string == text:
-            return cmd
-    return None
-
-
-def execute_command(text: str) -> CommandResult:
-    cmd = _match_command(text)
-    if not cmd:
-        return CommandResult(True, f"未找到匹配指令：{text}", {"ok": False, "message": "未找到匹配指令"})
-
-    args = _build_command_args(cmd.get("command"), cmd.get("args"))
-    if not args:
-        return CommandResult(True, f"命令配置错误：{text}", {"ok": False, "message": "命令配置错误"})
-
-    try:
-        completed = subprocess.run(args, capture_output=True, text=True)
-        ok = completed.returncode == 0
-        stderr = (completed.stderr or "").strip()
-        if ok:
-            msg = f"指令执行成功：{text}"
-        else:
-            msg = f"指令执行失败：{text}（exit {completed.returncode}）"
-            if stderr:
-                msg = f"{msg} - {stderr}"
-        return CommandResult(True, msg, {"ok": ok, "message": msg})
-    except Exception as e:
-        return CommandResult(True, f"指令执行异常：{text} - {e}", {"ok": False, "message": f"指令执行异常：{e}"})
-
-
-# ===================== WebSocket =====================
-async def ws_handler(websocket):
-    global CLIENT_COUNT
-
-    with CLIENT_LOCK:
-        CLIENT_COUNT += 1
-        c = CLIENT_COUNT
-    notify("手机已连接", f"连接数：{c}（HTTP:{HTTP_PORT} WS:{WS_PORT}）")
-
-    try:
-        async for msg in websocket:
-            msg = msg.strip()
-            if not msg:
-                continue
-            print("收到：", msg)
-            msg_type = "text"
-            content = msg
-            if msg.startswith("{"):
-                try:
-                    payload = json.loads(msg)
-                    if isinstance(payload, dict):
-                        msg_type = (payload.get("type") or "text").strip()
-                        content = payload.get("string")
-                except Exception:
-                    msg_type = "text"
-                    content = msg
-
-            if msg_type == "cmd":
-                result = execute_command(str(content or "").strip())
-                resp = {
-                    "type": "cmd_result",
-                    "string": str(content or "").strip(),
-                    "ok": bool(result.output.get("ok")) if isinstance(result.output, dict) else False,
-                    "message": result.output.get("message") if isinstance(result.output, dict) else result.display_text,
-                }
-                await websocket.send(json.dumps(resp, ensure_ascii=False))
-            else:
-                handle_text(str(content or ""))
-
-    except (ConnectionClosedOK, ConnectionClosedError, ConnectionClosed, ConnectionResetError, OSError):
-        pass
-
-    finally:
-        with CLIENT_LOCK:
-            CLIENT_COUNT -= 1
-            c = CLIENT_COUNT
-        notify("手机已断开", f"连接数：{c}")
-
-
-async def ws_main():
-    async with websockets.serve(
-        ws_handler, "0.0.0.0", WS_PORT,
-        ping_interval=WS_PING_INTERVAL,
-        ping_timeout=WS_PING_TIMEOUT,
-        max_size=1_000_000,
-        max_queue=32,
-        compression=None,
-    ):
-        print(f"WebSocket running at ws://0.0.0.0:{WS_PORT}")
-        await asyncio.Future()
-
-
-# ===================== HTTP =====================
-app = Flask(__name__)
-
-
-@app.route("/")
-def index():
-    # 打包后 index.html 在 sys._MEIPASS（onefile 临时解压目录）
-    path = resource_path("index.html")
-    response = send_file(path)
-    # 禁止缓存，确保前端更新立即可见
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
-
-
-@app.route("/config")
-def config():
-    return jsonify({"ws_port": WS_PORT, "http_port": HTTP_PORT, "url": QR_PAYLOAD_URL})
-
-
-@app.route("/health")
-def health():
-    return jsonify({"ok": True, "ws_port": WS_PORT, "http_port": HTTP_PORT})
-
-
-@app.route("/send", methods=["POST"])
-def send_http():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        data = {}
-    msg_type = (data.get("type") or request.form.get("type") or "text").strip()
-    content = data.get("string")
-    if content is None:
-        content = request.form.get("string")
-    text = str(content or "").strip()
-    if not text:
-        return jsonify({"ok": False, "message": "empty"}), 400
-
-    if msg_type == "cmd":
-        result = execute_command(text)
-        output = result.output if isinstance(result.output, dict) else {"ok": False, "message": result.display_text}
-        return jsonify({
-            "type": "cmd_result",
-            "string": text,
-            "ok": bool(output.get("ok")),
-            "message": output.get("message"),
-        })
-
-    handle_text(text)
-    return jsonify({"ok": True})
-
 
 def run_http():
     app.run(host="0.0.0.0", port=HTTP_PORT, debug=False, use_reloader=False)
@@ -1001,43 +544,11 @@ def _ws_thread_main(ready_evt: threading.Event):
     global WS_LOOP, WS_SERVER
     if WS_PORT is None:
         raise RuntimeError("WS_PORT 未初始化")
-    loop = asyncio.new_event_loop()
-    WS_LOOP = loop
-    asyncio.set_event_loop(loop)
-
-    async def _start_ws_server():
-        return await websockets.serve(
-            ws_handler, "0.0.0.0", WS_PORT,
-            ping_interval=WS_PING_INTERVAL,
-            ping_timeout=WS_PING_TIMEOUT,
-            max_size=1_000_000,
-            max_queue=32,
-            compression=None,
-        )
-
-    WS_SERVER = loop.run_until_complete(_start_ws_server())
-    ready_evt.set()
-    try:
-        loop.run_forever()
-    finally:
-        try:
-            if WS_SERVER:
-                WS_SERVER.close()
-                loop.run_until_complete(WS_SERVER.wait_closed())
-        except Exception:
-            pass
-        try:
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except Exception:
-            pass
-        try:
-            loop.close()
-        except Exception:
-            pass
+    def _set_state(loop, server):
+        global WS_LOOP, WS_SERVER
+        WS_LOOP = loop
+        WS_SERVER = server
+    ws_thread_main(ws_handler, WS_PORT, WS_PING_INTERVAL, WS_PING_TIMEOUT, ready_evt, _set_state)
 
 
 def is_service_running() -> bool:
