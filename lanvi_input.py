@@ -11,7 +11,7 @@ import pyautogui
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
 
-FORCE_CLICK_BEFORE_TYPE = True
+FORCE_CLICK_BEFORE_TYPE = False
 FOCUS_SETTLE_DELAY = 0.06
 
 CLEAR_BACKSPACE_MAX = 200
@@ -240,8 +240,7 @@ def focus_target():
     if not FORCE_CLICK_BEFORE_TYPE:
         return
     try:
-        x, y = pyautogui.position()
-        pyautogui.click(x, y)
+        pyautogui.click()
         time.sleep(FOCUS_SETTLE_DELAY)
     except Exception:
         pass
@@ -314,7 +313,8 @@ class InputService:
             self.notify("指令执行", result.display_text)
             return
 
-        focus_target()
+        if isinstance(result.output, str):
+            focus_target()
         execute_output(result.output)
 
         if not result.handled and isinstance(result.output, str):

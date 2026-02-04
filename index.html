@@ -645,6 +645,8 @@
       const RECONNECT_MAX_MS = 5000;
       const RECONNECT_JITTER_MS = 300;
       const WS_PORT_CACHE_KEY = "lanvoice_ws_port";
+      const SEND_MODE_CACHE_KEY = "lanvoice_send_mode";
+      const INPUT_MODE_CACHE_KEY = "lanvoice_input_mode";
       const HEALTH_CHECK_INTERVAL_MS = 3000;
       const HEALTH_CHECK_TIMEOUT_MS = 1200;
       let healthTimer = null;
@@ -692,7 +694,20 @@
         isManualSendMode = manual;
         document.getElementById("tabAuto").classList.toggle("active", !manual);
         document.getElementById("tabManual").classList.toggle("active", manual);
+        localStorage.setItem(SEND_MODE_CACHE_KEY, manual ? "manual" : "auto");
         log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
+        if (manual) {
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+          }
+          if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
+            manualClosing = true;
+            ws.close();
+          }
+        } else {
+          connectWS();
+        }
       }
 
       document.getElementById("tabAuto").onclick = () => setSendMode(false);
@@ -702,11 +717,22 @@
       function toggleInputMode() {
         const isCmd = document.getElementById("modeToggle").checked;
         currentMode = isCmd ? "cmd" : "text";
+        localStorage.setItem(INPUT_MODE_CACHE_KEY, currentMode);
         document.getElementById("modeLabel").textContent = isCmd ? "⌨️ 命令模式" : "✍️ 文字模式";
         log("✅ 切换模式：" + (isCmd ? "命令" : "文字"));
       }
 
       document.getElementById("modeToggle").onchange = toggleInputMode;
+      const savedSendMode = localStorage.getItem(SEND_MODE_CACHE_KEY);
+      if (savedSendMode === "auto" || savedSendMode === "manual") {
+        setSendMode(savedSendMode === "manual");
+      }
+      const savedInputMode = localStorage.getItem(INPUT_MODE_CACHE_KEY);
+      if (savedInputMode === "cmd" || savedInputMode === "text") {
+        const modeToggle = document.getElementById("modeToggle");
+        modeToggle.checked = savedInputMode === "cmd";
+        toggleInputMode();
+      }
 
       // Popover click handling for mobile
       const helpIcon = document.querySelector(".help-icon");
@@ -773,10 +799,10 @@
         setStatus("检测中", "checking");
         const data = await fetchHealthWithTimeout(HEALTH_CHECK_TIMEOUT_MS);
         if (data && data.ok) {
-          setStatus("HTTP 在线", "online");
+          setStatus("在线", "online");
           if (announce) log("✅ 健康检查通过");
         } else {
-          setStatus("HTTP 离线", "offline");
+          setStatus("离线", "offline");
           if (announce) log("❌ 健康检查失败");
         }
       }
@@ -788,7 +814,7 @@
       }
 
       function scheduleReconnect() {
-        if (manualClosing) return;
+        if (manualClosing || isManualSendMode) return;
         if (reconnectTimer) return;
         const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * Math.pow(2, reconnectAttempt));
         const jitter = Math.floor(Math.random() * RECONNECT_JITTER_MS);
@@ -896,7 +922,7 @@
       }
 
       async function connectWS() {
-        if (isConnecting) return;
+        if (isManualSendMode || isConnecting) return;
         isConnecting = true;
         const connectId = ++pendingConnectToken;
         if (reconnectTimer) {
@@ -912,7 +938,7 @@
         isConnecting = false;
         scheduleReconnect();
       }
-      connectWS();
+      if (!isManualSendMode) connectWS();
       startHealthPolling();
 
       window.onload = () => {
@@ -920,11 +946,11 @@
       };
 
       window.addEventListener("online", () => {
-        if (!ws || ws.readyState !== 1) connectWS();
+        if (!isManualSendMode && (!ws || ws.readyState !== 1)) connectWS();
       });
 
       document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && (!ws || ws.readyState !== 1)) connectWS();
+        if (!isManualSendMode && !document.hidden && (!ws || ws.readyState !== 1)) connectWS();
       });
 
       async function sendPayload(type, text, force = false, useHttp = false) {
@@ -1063,7 +1089,7 @@
         flushDelta();
       });
       inputBox.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey && !isComposing) {
+        if (isManualSendMode && e.key === "Enter" && !e.shiftKey && !isComposing) {
           e.preventDefault();
           const form = document.getElementById("sendForm");
           if (form.requestSubmit) {
