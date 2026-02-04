@@ -640,6 +640,7 @@
       let reconnectTimer = null;
       let reconnectAttempt = 0;
       let pendingConnectToken = 0;
+      let dialingWs = null;
       const CONNECT_TIMEOUT_MS = 2500;
       const RECONNECT_BASE_MS = 500;
       const RECONNECT_MAX_MS = 5000;
@@ -698,10 +699,7 @@
         log("ℹ️ 切换为：" + (manual ? "手动发送" : "自动发送"));
         if (manual) {
           startHealthPolling();
-          if (reconnectTimer) {
-            clearTimeout(reconnectTimer);
-            reconnectTimer = null;
-          }
+          stopWsDialing();
           if (ws && (ws.readyState === 0 || ws.readyState === 1)) {
             manualClosing = true;
             ws.close();
@@ -709,7 +707,7 @@
         } else {
           stopHealthPolling();
           setStatus("连接中", "checking");
-          connectWS();
+          connectWS(true);
         }
       }
 
@@ -774,13 +772,25 @@
 
       async function resolveWSPortCandidates() {
         const candidates = [];
+        const sources = [];
         const wsFromQuery = normalizePort(getWSFromQuery());
-        if (wsFromQuery) candidates.push(wsFromQuery);
+        if (wsFromQuery) {
+          candidates.push(wsFromQuery);
+          sources.push(`query=${wsFromQuery}`);
+        }
         const cached = normalizePort(localStorage.getItem(WS_PORT_CACHE_KEY));
-        if (cached) candidates.push(cached);
+        if (cached) {
+          candidates.push(cached);
+          sources.push(`cache=${cached}`);
+        }
         const configPort = await fetchWSPortWithTimeout(800);
-        if (configPort) candidates.push(configPort);
+        if (configPort) {
+          candidates.push(configPort);
+          sources.push(`config=${configPort}`);
+        }
         candidates.push("8765");
+        sources.push("default=8765");
+        log("🔎 WS 候选端口：" + sources.join(", "));
         return [...new Set(candidates)];
       }
 
@@ -837,21 +847,24 @@
 
       function attachWsRuntimeHandlers() {
         if (!ws) return;
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           isConnecting = false;
           if (manualClosing) {
             manualClosing = false;
             log("🔌 已手动断开");
             return;
           }
-          log("❌ 连接断开");
+          const code = event && typeof event.code === "number" ? event.code : "unknown";
+          const reason = event && typeof event.reason === "string" ? event.reason : "";
+          log("❌ 连接断开 code=" + code + (reason ? " reason=" + reason : ""));
           if (!isManualSendMode) setStatus("离线", "offline");
           scheduleReconnect();
         };
 
         ws.onerror = () => {
           isConnecting = false;
-          log("❌ WebSocket 错误");
+          const state = ws ? ws.readyState : -1;
+          log("❌ WebSocket 错误 state=" + state);
           if (!isManualSendMode) setStatus("离线", "offline");
           if (!manualClosing) scheduleReconnect();
         };
@@ -869,24 +882,30 @@
       function tryConnectPort(port, connectId) {
         return new Promise((resolve) => {
           const wsUrl = `ws://${location.hostname}:${port}`;
+          const startedAt = Date.now();
           log("⏳ 正在连接到：" + wsUrl);
           let finished = false;
+          let wsInstance = null;
           let timeoutId = setTimeout(() => {
             if (finished) return;
             finished = true;
             try {
-              if (ws && ws.readyState === 0) ws.close();
+              if (wsInstance && wsInstance.readyState !== 3) wsInstance.close();
             } catch (e) {}
+            const state = wsInstance ? wsInstance.readyState : -1;
+            log("⏱️ 连接超时：" + wsUrl + " state=" + state);
             resolve(false);
           }, CONNECT_TIMEOUT_MS);
 
           try {
-            ws = new WebSocket(wsUrl);
+            wsInstance = new WebSocket(wsUrl);
           } catch (e) {
             clearTimeout(timeoutId);
+            log("❌ 创建连接失败：" + wsUrl);
             resolve(false);
             return;
           }
+          dialingWs = wsInstance;
 
           const cleanup = () => {
             if (timeoutId) {
@@ -895,14 +914,15 @@
             }
           };
 
-          ws.onopen = () => {
+          wsInstance.onopen = () => {
             if (finished) return;
             finished = true;
             cleanup();
             if (connectId !== pendingConnectToken) {
               try {
-                ws.close();
+                wsInstance.close();
               } catch (e) {}
+              log("⚠️ 连接被新请求替换：" + wsUrl);
               resolve(false);
               return;
             }
@@ -910,23 +930,32 @@
             manualClosing = false;
             reconnectAttempt = 0;
             localStorage.setItem(WS_PORT_CACHE_KEY, String(port));
-            log("✅ 已连接到服务器");
+            ws = wsInstance;
+            if (dialingWs === wsInstance) dialingWs = null;
+            log("✅ 已连接到服务器（" + (Date.now() - startedAt) + "ms）");
             if (!isManualSendMode) setStatus("已连接", "online");
             attachWsRuntimeHandlers();
             resolve(true);
           };
 
-          ws.onclose = () => {
+          wsInstance.onclose = (event) => {
             if (finished) return;
             finished = true;
             cleanup();
+            const code = event && typeof event.code === "number" ? event.code : "unknown";
+            const reason = event && typeof event.reason === "string" ? event.reason : "";
+            log("❌ 连接关闭：" + wsUrl + " code=" + code + (reason ? " reason=" + reason : ""));
+            if (dialingWs === wsInstance) dialingWs = null;
             resolve(false);
           };
 
-          ws.onerror = () => {
+          wsInstance.onerror = () => {
             if (finished) return;
             finished = true;
             cleanup();
+            const state = wsInstance ? wsInstance.readyState : -1;
+            log("❌ 连接错误：" + wsUrl + " state=" + state);
+            if (dialingWs === wsInstance) dialingWs = null;
             resolve(false);
           };
         });
@@ -940,6 +969,7 @@
           pendingConnectToken += 1;
         }
         const connectId = ++pendingConnectToken;
+        log("🧭 开始连接（force=" + (force ? "1" : "0") + "）");
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
           reconnectTimer = null;
@@ -951,6 +981,9 @@
               ws.close();
             }
           } catch (e) {}
+          try {
+            if (dialingWs && dialingWs.readyState !== 3) dialingWs.close();
+          } catch (e) {}
         }
         const candidates = await resolveWSPortCandidates();
         for (const port of candidates) {
@@ -958,6 +991,7 @@
           const ok = await tryConnectPort(port, connectId);
           if (ok) return;
         }
+        log("⚠️ 所有候选端口连接失败");
         isConnecting = false;
         scheduleReconnect();
       }
@@ -1064,6 +1098,20 @@
         reconnectAttempt = 0;
         connectWS(true);
       };
+
+      function stopWsDialing() {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        reconnectAttempt = 0;
+        pendingConnectToken += 1;
+        isConnecting = false;
+        try {
+          if (dialingWs && dialingWs.readyState !== 3) dialingWs.close();
+        } catch (e) {}
+        dialingWs = null;
+      }
 
       const inputBox = document.getElementById("inputBox");
       document.querySelectorAll(".func-btn").forEach((btn) => {
